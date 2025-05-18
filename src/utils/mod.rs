@@ -12,7 +12,7 @@ pub fn ensure_dir_exists(dir: &Path) -> Result<()> {
     if !dir.exists() {
         fs::create_dir_all(dir)?;
     }
-    
+
     Ok(())
 }
 
@@ -43,12 +43,12 @@ pub fn is_file_writable(path: &Path) -> bool {
             if let Ok(metadata) = fs::metadata(path) {
                 let mode = metadata.mode();
                 let uid = metadata.uid();
-                
+
                 // Check if current user is owner and owner has write permission
                 return uid == unsafe { libc::getuid() } && (mode & 0o200) != 0;
             }
         }
-        
+
         // On non-Unix systems, just try to open the file in write mode
         #[cfg(not(unix))]
         {
@@ -57,14 +57,14 @@ pub fn is_file_writable(path: &Path) -> bool {
             }
         }
     }
-    
+
     // If the file doesn't exist, check if the parent directory is writable
     if let Some(parent) = path.parent() {
         if parent.exists() {
             return is_dir_writable(parent);
         }
     }
-    
+
     false
 }
 
@@ -78,12 +78,12 @@ pub fn is_dir_writable(path: &Path) -> bool {
             if let Ok(metadata) = fs::metadata(path) {
                 let mode = metadata.mode();
                 let uid = metadata.uid();
-                
+
                 // Check if current user is owner and owner has write permission
                 return uid == unsafe { libc::getuid() } && (mode & 0o200) != 0;
             }
         }
-        
+
         // On non-Unix systems, try to create a temporary file in the directory
         #[cfg(not(unix))]
         {
@@ -95,7 +95,7 @@ pub fn is_dir_writable(path: &Path) -> bool {
             return result;
         }
     }
-    
+
     false
 }
 
@@ -103,35 +103,35 @@ pub fn is_dir_writable(path: &Path) -> bool {
 mod tests {
     use super::*;
     use tempfile::tempdir;
-    
+
     #[test]
     fn test_ensure_dir_exists() {
         let dir = tempdir().unwrap();
         let test_dir = dir.path().join("test_dir");
-        
+
         // Directory doesn't exist yet
         assert!(!test_dir.exists());
-        
+
         // Create it
         ensure_dir_exists(&test_dir).unwrap();
-        
+
         // Now it exists
         assert!(test_dir.exists());
-        
+
         // Calling it again should be fine
         ensure_dir_exists(&test_dir).unwrap();
     }
-    
+
     #[test]
     fn test_expand_tilde() {
         let home_dir = dirs::home_dir().unwrap();
-        
+
         let path = expand_tilde("~");
         assert_eq!(path, home_dir);
-        
+
         let path = expand_tilde("~/test");
         assert_eq!(path, home_dir.join("test"));
-        
+
         let path = expand_tilde("/absolute/path");
         assert_eq!(path, PathBuf::from("/absolute/path"));
     }
