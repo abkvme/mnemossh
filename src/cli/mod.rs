@@ -2,6 +2,12 @@
  * Command-line interface for the mnemossh utility
  */
 
+//! Command-line interface for MnemoSSH.
+//!
+//! This module provides the command-line interface for generating, restoring, and verifying
+//! SSH keys using mnemonic phrases. It defines the command structure and argument parsing
+//! using the clap library.
+
 use clap::{Parser, Subcommand};
 use std::path::PathBuf;
 
@@ -22,7 +28,6 @@ pub use commands_update::verify_command;
     name = "mnemossh",
     about = "Generate and manage Ed25519 SSH keys using BIP-39 mnemonic phrases",
     long_about = "A utility for generating and managing Ed25519 SSH keys using BIP-39 mnemonic phrases. This allows you to backup and restore your SSH keys using a human-readable phrase, avoiding the need to securely store the private key file itself.",
-    version,
     author = "Ales Bykau <abkvme>",
     after_help = "For more information, visit: https://github.com/abkvme/mnemossh"
 )]
