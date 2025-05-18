@@ -27,55 +27,140 @@ The binary will be available at `target/release/mnemossh`.
 
 ## Usage
 
+MnemoSSH provides four main commands: `generate`, `restore`, `verify`, and `version`. All commands support both their full name and their aliases (`gen`, `res`, `ver`, and `v` respectively).
+
 ### Generate a new SSH key with mnemonic
 
+The `generate` command creates a new mnemonic phrase and uses it to derive an Ed25519 SSH key pair.
+
+**Basic usage:**
 ```bash
 mnemossh generate
 ```
 
-or with options:
-
+**With all options:**
 ```bash
-mnemossh gen -o ~/.ssh/id_ed25519 -c user@example.com -l 18 -m ~/.ssh/mnemonic.txt -p mysecretpass
+mnemossh gen -o ~/.ssh/id_ed25519 -c user@example.com -l 24 -m ~/.ssh/mnemonic.txt -p mysecretpass
 ```
 
 ### Restore an SSH key from mnemonic
 
+The `restore` command recreates an SSH key pair from an existing mnemonic phrase.
+
+**Basic usage:**
 ```bash
-mnemossh restore "abandon ability able about ..." -o ~/.ssh/id_ed25519
+mnemossh restore "abandon ability able about ..."
+```
+
+**With all options:**
+```bash
+mnemossh res "abandon ability able about ..." -o ~/.ssh/id_ed25519 -c user@example.com -p mysecretpass
 ```
 
 ### Verify key integrity
 
+The `verify` command checks that an existing SSH key matches a given mnemonic phrase.
+
+**Basic usage:**
 ```bash
 mnemossh verify "abandon ability able about ..."
+```
+
+**With key path specified:**
+```bash
+mnemossh ver "abandon ability able about ..." -k ~/.ssh/id_ed25519
+```
+
+### Display version information
+
+```bash
+mnemossh version
+# or simply
+mnemossh v
 ```
 
 ### Display help
 
 ```bash
+# General help
 mnemossh --help
+
+# Command-specific help
+mnemossh generate --help
+mnemossh restore --help
+mnemossh verify --help
 ```
 
-## Command Line Options
+## Command Line Reference
 
-### Generate Command
+MnemoSSH provides comprehensive command line options for all operations. Below is a detailed reference of all available commands and their parameters.
 
-- `-o, --output <FILE>`: Specify output file for the private key
-- `-c, --comment <COMMENT>`: Add a comment to the public key (typically an email)
-- `-p, --passphrase <PASSPHRASE>`: Provide a passphrase for encrypting the private key
-- `-l, --length <LENGTH>`: Specify mnemonic length (12, 18, or 24 words)
-- `-m, --mnemonic-file <FILE>`: Save mnemonic to a file instead of displaying it
+### Global Options
 
-### Restore Command
+- `--help`: Display help information for any command
+- `--version`: Display version information
 
-- `-o, --output <FILE>`: Specify output file for the private key
-- `-c, --comment <COMMENT>`: Add a comment to the public key
-- `-p, --passphrase <PASSPHRASE>`: Provide a passphrase for encrypting the private key
+### `generate` Command (alias: `gen`)
 
-### Verify Command
+Generate a new mnemonic phrase and SSH key pair.
 
-- `-k, --key <FILE>`: Specify the SSH key file to verify against
+**Parameters:**
+
+- `-o, --output <FILE>`: Output file for the private key (public key will be saved as `<file>.pub`)
+  - If not specified, defaults to `~/.ssh/id_ed25519` or `./id_ed25519` if the default path can't be determined
+
+- `-c, --comment <COMMENT>`: Comment to add to the public key (typically an email address)
+  - This is added to the end of the public key and is useful for identifying the key owner
+
+- `-p, --passphrase <PASSPHRASE>`: Passphrase for encrypting the private key
+  - If not provided via command line, you'll be prompted interactively
+  - Use a strong passphrase for additional security
+
+- `-l, --length <LENGTH>`: Length of the mnemonic phrase (12, 18, or 24 words)
+  - Default is 24 words (highest security)
+  - Options are: 12 (128 bits of entropy), 18 (192 bits), or 24 (256 bits)
+
+- `-m, --mnemonic-file <FILE>`: Save the mnemonic phrase to a file instead of displaying it
+  - Useful for storing the phrase securely
+  - IMPORTANT: Anyone with access to this file can recreate your SSH key
+
+### `restore` Command (alias: `res`)
+
+Restore an SSH key from a mnemonic phrase.
+
+**Parameters:**
+
+- `<MNEMONIC>`: The BIP-39 mnemonic phrase to restore from (required)
+  - Should be 12, 18, or 24 words matching the original phrase
+
+- `-o, --output <FILE>`: Output file for the private key (public key will be saved as `<file>.pub`)
+  - If not specified, defaults to `~/.ssh/id_ed25519` or `./id_ed25519` if the default path can't be determined
+
+- `-c, --comment <COMMENT>`: Comment to add to the public key (typically an email address)
+  - This is added to the end of the public key and is useful for identifying the key owner
+
+- `-p, --passphrase <PASSPHRASE>`: Passphrase for encrypting the private key
+  - If not provided via command line, you'll be prompted interactively
+  - This creates a new encryption for the private key and does not need to match original passphrase
+
+### `verify` Command (alias: `ver`)
+
+Verify that a key matches a mnemonic phrase.
+
+**Parameters:**
+
+- `<MNEMONIC>`: The BIP-39 mnemonic phrase to verify (required)
+  - Should be 12, 18, or 24 words to verify against the key
+
+- `-k, --key <FILE>`: The SSH key file to verify against
+  - If not specified, defaults to `~/.ssh/id_ed25519` or `./id_ed25519` if the default path can't be determined
+  - The utility will check if this key was generated from the provided mnemonic phrase
+
+### `version` Command (alias: `v`)
+
+Display version information about the MnemoSSH utility.
+
+**Parameters:** None
 
 ## Library Usage
 
