@@ -19,7 +19,7 @@ path = "src/main.rs"
 
 [dependencies]
 # Cryptography
-ed25519-dalek = "2.1.1"
+ed25519-dalek = { version = "2.1.1", default-features = false, features = ["pkcs8", "pem", "digest"] } 
 tiny-bip39 = "2.0.0"
 sha2 = "0.10.9"
 base64 = "0.22.1"
@@ -32,7 +32,7 @@ time = { version = "0.3.38", features = ["local-offset"] }
 # CLI
 clap = { version = "4.5.38", features = ["derive"] }
 dialoguer = "0.11.0"
-console = "0.15.11"
+console = { version = "0.15.11", default-features = false }
 
 # Error handling
 thiserror = "2.0.12"
