@@ -4,8 +4,23 @@
 
 use std::fs;
 use std::path::{Path, PathBuf};
+use std::process::Command;
 
 use crate::Result;
+
+/// Get the current user ID using a cross-platform approach
+#[cfg(unix)]
+fn get_current_uid() -> Option<u32> {
+    Command::new("id")
+        .arg("-u")
+        .output()
+        .ok()
+        .and_then(|output| {
+            String::from_utf8(output.stdout)
+                .ok()
+                .and_then(|id_str| id_str.trim().parse::<u32>().ok())
+        })
+}
 
 /// Ensure a directory exists, creating it if necessary
 pub fn ensure_dir_exists(dir: &Path) -> Result<()> {
@@ -40,21 +55,29 @@ pub fn is_file_writable(path: &Path) -> bool {
         #[cfg(unix)]
         {
             use std::os::unix::fs::MetadataExt;
-            if let Ok(metadata) = fs::metadata(path) {
+
+            // First try using file metadata
+            if let (Ok(metadata), Some(current_uid)) = (fs::metadata(path), get_current_uid()) {
                 let mode = metadata.mode();
                 let uid = metadata.uid();
 
                 // Check if current user is owner and owner has write permission
-                return uid == unsafe { libc::getuid() } && (mode & 0o200) != 0;
+                if uid == current_uid && (mode & 0o200) != 0 {
+                    return true;
+                }
+            }
+
+            // If metadata check fails, try the actual write test
+            if let Ok(permissions) = fs::metadata(path).map(|m| m.permissions()) {
+                if permissions.readonly() {
+                    return false;
+                }
             }
         }
 
-        // On non-Unix systems, just try to open the file in write mode
-        #[cfg(not(unix))]
-        {
-            if let Ok(_file) = fs::OpenOptions::new().write(true).open(path) {
-                return true;
-            }
+        // On non-Unix systems or as a fallback, try to open the file in write mode
+        if let Ok(_file) = fs::OpenOptions::new().write(true).open(path) {
+            return true;
         }
     }
 
@@ -75,25 +98,33 @@ pub fn is_dir_writable(path: &Path) -> bool {
         #[cfg(unix)]
         {
             use std::os::unix::fs::MetadataExt;
-            if let Ok(metadata) = fs::metadata(path) {
+
+            // First try using directory metadata
+            if let (Ok(metadata), Some(current_uid)) = (fs::metadata(path), get_current_uid()) {
                 let mode = metadata.mode();
                 let uid = metadata.uid();
 
                 // Check if current user is owner and owner has write permission
-                return uid == unsafe { libc::getuid() } && (mode & 0o200) != 0;
+                if uid == current_uid && (mode & 0o200) != 0 {
+                    return true;
+                }
+            }
+
+            // If metadata check fails, try the actual write test
+            if let Ok(permissions) = fs::metadata(path).map(|m| m.permissions()) {
+                if permissions.readonly() {
+                    return false;
+                }
             }
         }
 
-        // On non-Unix systems, try to create a temporary file in the directory
-        #[cfg(not(unix))]
-        {
-            let temp_file = path.join(".mnemossh_write_test");
-            let result = fs::File::create(&temp_file).is_ok();
-            if result {
-                let _ = fs::remove_file(&temp_file);
-            }
-            return result;
+        // Try to create a temporary file in the directory (works on all platforms)
+        let temp_file = path.join(".mnemossh_write_test");
+        let result = fs::File::create(&temp_file).is_ok();
+        if result {
+            let _ = fs::remove_file(&temp_file);
         }
+        return result;
     }
 
     false

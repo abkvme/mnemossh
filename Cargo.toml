@@ -27,7 +27,6 @@ hmac = "0.12.1"
 rand = "0.9.1"
 zeroize = { version = "1.8.1", features = ["zeroize_derive"] }
 hex = "0.4.3"
-libc = "0.2.172"
 chrono = "0.4.41"
 
 # CLI
