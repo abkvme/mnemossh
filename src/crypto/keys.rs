@@ -297,7 +297,7 @@ fn format_openssh_private_key(signing_key: &SigningKey, passphrase: Option<&str>
     // Format with line breaks (64 chars per line)
     let mut formatted = String::new();
     formatted.push_str(openssh_header);
-    for i in 0..((encoded.len() + 69) / 70) {
+    for i in 0..(encoded.len().div_ceil(70)) {
         let start = i * 70;
         let end = std::cmp::min((i + 1) * 70, encoded.len());
         formatted.push_str(&encoded[start..end]);

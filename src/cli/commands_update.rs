@@ -214,8 +214,7 @@ pub fn verify_command(
         let parts: Vec<&str> = openssh_key.trim().splitn(3, ' ').collect();
         if parts.len() >= 2 {
             // Return the key type and base64 data without the comment
-            let key_without_comment = &openssh_key[0..parts[0].len() + 1 + parts[1].len()];
-            key_without_comment
+            &openssh_key[0..parts[0].len() + 1 + parts[1].len()]
         } else {
             // If there are fewer than 2 parts, just return the trimmed string
             openssh_key.trim()
@@ -224,7 +223,7 @@ pub fn verify_command(
     
     // Extract key parts without comments
     let existing_key_part = extract_key_without_comment(&key_content);
-    let expected_key_part = extract_key_without_comment(&expected_keypair.public_key_openssh());
+    let expected_key_part = extract_key_without_comment(expected_keypair.public_key_openssh());
     
     // Compare only the key portions, ignoring any comments
     if existing_key_part == expected_key_part {

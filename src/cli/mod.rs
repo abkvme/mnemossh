@@ -23,7 +23,7 @@ pub use commands_update::verify_command;
     about = "Generate and manage Ed25519 SSH keys using BIP-39 mnemonic phrases",
     long_about = "A utility for generating and managing Ed25519 SSH keys using BIP-39 mnemonic phrases. This allows you to backup and restore your SSH keys using a human-readable phrase, avoiding the need to securely store the private key file itself.",
     version,
-    author = "OxiSoft",
+    author = "Ales Bykau <abkvme>",
     after_help = "For more information, visit: https://github.com/abkvme/mnemossh"
 )]
 pub struct Cli {
@@ -157,7 +157,7 @@ pub fn run() -> Result<()> {
         } => {
             // Convert length string to MnemonicLength if provided
             let mnemonic_length = if let Some(length_str) = length {
-                Some(MnemonicLength::from_word_count(&length_str)?)
+                Some(MnemonicLength::from_word_count(length_str)?)
             } else {
                 None
             };

@@ -13,9 +13,11 @@ use crate::Result;
 
 /// Available lengths for mnemonic phrases
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Default)]
 pub enum MnemonicLength {
     Words12,
     Words18,
+    #[default]
     Words24,
 }
 
@@ -40,11 +42,7 @@ impl MnemonicLength {
     }
 }
 
-impl Default for MnemonicLength {
-    fn default() -> Self {
-        MnemonicLength::Words24
-    }
-}
+
 
 /// A wrapper around BIP-39 mnemonic phrases with secure memory handling
 #[derive(Clone, ZeroizeOnDrop)]
@@ -103,7 +101,7 @@ impl Mnemonic {
     /// Save the mnemonic phrase to a file
     pub fn save_to_file(&self, path: impl AsRef<Path>) -> Result<()> {
         std::fs::write(path, self.phrase())
-            .map_err(|e| Error::IoError(e))?;
+            .map_err(Error::IoError)?;
         
         Ok(())
     }
