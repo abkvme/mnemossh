@@ -2,10 +2,10 @@
  * Command implementations for the mnemossh CLI
  */
 
-use chrono::Datelike;
 use console::{Term, style};
 use dialoguer::Password;
 use std::path::PathBuf;
+use time::OffsetDateTime;
 
 use crate::crypto::keys::generate_new_keypair_with_mnemonic;
 use crate::crypto::mnemonic::MnemonicLength;
@@ -252,7 +252,7 @@ pub fn version_command() -> Result<()> {
     term.write_line(&format!(
         "Copyright (c) {} {}",
         env!("CARGO_PKG_AUTHORS"),
-        chrono::Local::now().year()
+        OffsetDateTime::now_utc().year()
     ))?;
 
     Ok(())
