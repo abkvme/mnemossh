@@ -9,7 +9,12 @@ use crate::crypto::mnemonic::MnemonicLength;
 use crate::Result;
 
 mod commands;
-pub use commands::*;
+mod commands_update;
+
+pub use commands::generate_command;
+pub use commands::version_command;
+pub use commands_update::restore_command;
+pub use commands_update::verify_command;
 
 /// CLI command structure
 #[derive(Parser, Debug)]
@@ -54,11 +59,10 @@ pub enum Commands {
             short, 
             long, 
             value_name = "LENGTH", 
-            default_value = "24",
             help = "Length of the mnemonic phrase (12, 18, or 24 words)",
-            long_help = "Specify the length of the generated mnemonic phrase in words. Longer phrases provide more security. Options are 12, 18, or 24 words."
+            long_help = "Specify the length of the generated mnemonic phrase in words. Longer phrases provide more security. Options are 12, 18, or 24 words. If not specified, you'll be prompted to choose interactively."
         )]
-        length: String,
+        length: Option<String>,
         
         /// Save the mnemonic phrase to a file instead of displaying it
         #[clap(
@@ -83,9 +87,10 @@ pub enum Commands {
         #[clap(
             value_name = "MNEMONIC",
             help = "The BIP-39 mnemonic phrase to restore from",
-            long_help = "Provide the full BIP-39 mnemonic phrase (12, 18, or 24 words) that was previously generated. This is used to deterministically recreate the exact same SSH key pair."
+            long_help = "Provide the full BIP-39 mnemonic phrase (12, 18, or 24 words) that was previously generated. This is used to deterministically recreate the exact same SSH key pair. If not provided, you'll be prompted to enter it interactively.",
+            required = false
         )]
-        mnemonic: String,
+        mnemonic: Option<String>,
         
         /// Output file for the private key (public key will be saved as <file>.pub)
         #[clap(short, long, value_name = "FILE")]
@@ -112,9 +117,10 @@ pub enum Commands {
         #[clap(
             value_name = "MNEMONIC",
             help = "The BIP-39 mnemonic phrase to verify",
-            long_help = "Provide the full BIP-39 mnemonic phrase (12, 18, or 24 words) that you want to verify. The utility will generate a key from this phrase and compare it to the specified key file."
+            long_help = "Provide the full BIP-39 mnemonic phrase (12, 18, or 24 words) that you want to verify. The utility will generate a key from this phrase and compare it to the specified key file. If not provided, you'll be prompted to enter it interactively.",
+            required = false
         )]
-        mnemonic: String,
+        mnemonic: Option<String>,
         
         /// The SSH key file to verify against (defaults to ~/.ssh/id_ed25519)
         #[clap(
@@ -149,7 +155,13 @@ pub fn run() -> Result<()> {
             length, 
             mnemonic_file 
         } => {
-            let mnemonic_length = MnemonicLength::from_word_count(length)?;
+            // Convert length string to MnemonicLength if provided
+            let mnemonic_length = if let Some(length_str) = length {
+                Some(MnemonicLength::from_word_count(&length_str)?)
+            } else {
+                None
+            };
+            
             commands::generate_command(
                 output.clone(),
                 comment.as_deref(),
@@ -165,8 +177,8 @@ pub fn run() -> Result<()> {
             comment, 
             passphrase 
         } => {
-            commands::restore_command(
-                mnemonic,
+            commands_update::restore_command(
+                mnemonic.as_deref(),
                 output.clone(),
                 comment.as_deref(),
                 passphrase.as_deref(),
@@ -177,7 +189,7 @@ pub fn run() -> Result<()> {
             mnemonic, 
             key 
         } => {
-            commands::verify_command(mnemonic, key.clone())
+            commands_update::verify_command(mnemonic.as_deref(), key.clone())
         },
         
         Commands::Version => {

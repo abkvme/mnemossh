@@ -9,9 +9,10 @@ MnemoSSH is a Rust-based library and command-line utility designed to generate a
 - **Generate SSH keys from mnemonic phrases**: Create Ed25519 SSH keys deterministically from BIP-39 mnemonic phrases
 - **Create new mnemonics**: Generate cryptographically secure mnemonic phrases (12, 18, or 24 words)
 - **Restore keys**: Easily recover your SSH keys from your saved mnemonic phrase
-- **Secure memory handling**: Sensitive information is zeroed from memory when no longer needed
 - **Compatible with OpenSSH**: Generated keys work with standard SSH tools and servers
 - **Passphrase protection**: Optionally encrypt your private keys with a passphrase
+- **Fully interactive**: Guided, interactive workflows when command-line parameters aren't provided
+- **File safety**: Prompts before overwriting existing key files
 
 ## Installation
 
@@ -31,7 +32,7 @@ MnemoSSH provides four main commands: `generate`, `restore`, `verify`, and `vers
 
 ### Generate a new SSH key with mnemonic
 
-The `generate` command creates a new mnemonic phrase and uses it to derive an Ed25519 SSH key pair.
+The `generate` command creates a new mnemonic phrase and uses it to derive an Ed25519 SSH key pair. When run without parameters, it guides you through an interactive process.
 
 **Basic usage:**
 ```bash
@@ -45,9 +46,15 @@ mnemossh gen -o ~/.ssh/id_ed25519 -c user@example.com -l 24 -m ~/.ssh/mnemonic.t
 
 ### Restore an SSH key from mnemonic
 
-The `restore` command recreates an SSH key pair from an existing mnemonic phrase.
+The `restore` command recreates an SSH key pair from an existing mnemonic phrase. The mnemonic can be provided as a parameter or entered interactively.
 
 **Basic usage:**
+```bash
+mnemossh restore
+# You'll be prompted to enter the mnemonic phrase
+```
+
+**With mnemonic as parameter:**
 ```bash
 mnemossh restore "abandon ability able about ..."
 ```
@@ -59,9 +66,15 @@ mnemossh res "abandon ability able about ..." -o ~/.ssh/id_ed25519 -c user@examp
 
 ### Verify key integrity
 
-The `verify` command checks that an existing SSH key matches a given mnemonic phrase.
+The `verify` command checks that an existing SSH key matches a given mnemonic phrase. The mnemonic can be provided as a parameter or entered interactively.
 
 **Basic usage:**
+```bash
+mnemossh verify
+# You'll be prompted to enter the mnemonic phrase
+```
+
+**With mnemonic as parameter:**
 ```bash
 mnemossh verify "abandon ability able about ..."
 ```
@@ -91,6 +104,26 @@ mnemossh restore --help
 mnemossh verify --help
 ```
 
+## Interactive Features and Safety
+
+### Guided Workflow
+
+MnemoSSH uses an interactive workflow when parameters aren't specified:
+
+1. **Output Path Selection**: Choose between default SSH location, current directory, or a custom path
+2. **Mnemonic Input**: Type your mnemonic phrase when restoring or verifying if not provided as an argument
+3. **Mnemonic Length**: Select from 12, 18, or 24 words when generating a new mnemonic
+4. **Passphrase Entry**: Securely enter and confirm passphrases with masked input
+
+### Overwrite Protection
+
+The utility includes protection against accidentally overwriting existing SSH keys. When generating or restoring SSH keys to a location where keys already exist:
+
+1. The tool will detect any existing files
+2. Show a clear warning message
+3. Ask for confirmation before proceeding
+4. Default to NOT overwriting for safety
+
 ## Command Line Reference
 
 MnemoSSH provides comprehensive command line options for all operations. Below is a detailed reference of all available commands and their parameters.
@@ -107,7 +140,11 @@ Generate a new mnemonic phrase and SSH key pair.
 **Parameters:**
 
 - `-o, --output <FILE>`: Output file for the private key (public key will be saved as `<file>.pub`)
-  - If not specified, defaults to `~/.ssh/id_ed25519` or `./id_ed25519` if the default path can't be determined
+  - If not specified, you'll be prompted interactively to choose:
+    - Default SSH location (`~/.ssh/id_ed25519`)
+    - Current directory (`./id_ed25519`)
+    - Custom location (enter path)
+  - Checks for existing files and prompts before overwriting
 
 - `-c, --comment <COMMENT>`: Comment to add to the public key (typically an email address)
   - This is added to the end of the public key and is useful for identifying the key owner
@@ -117,8 +154,8 @@ Generate a new mnemonic phrase and SSH key pair.
   - Use a strong passphrase for additional security
 
 - `-l, --length <LENGTH>`: Length of the mnemonic phrase (12, 18, or 24 words)
-  - Default is 24 words (highest security)
-  - Options are: 12 (128 bits of entropy), 18 (192 bits), or 24 (256 bits)
+  - If not specified, you'll be prompted to choose interactively
+  - Options are: 24 words (highest security, 256 bits), 18 words (high security, 192 bits), or 12 words (standard security, 128 bits)
 
 - `-m, --mnemonic-file <FILE>`: Save the mnemonic phrase to a file instead of displaying it
   - Useful for storing the phrase securely
@@ -130,11 +167,16 @@ Restore an SSH key from a mnemonic phrase.
 
 **Parameters:**
 
-- `<MNEMONIC>`: The BIP-39 mnemonic phrase to restore from (required)
+- `<MNEMONIC>`: The BIP-39 mnemonic phrase to restore from (optional)
   - Should be 12, 18, or 24 words matching the original phrase
+  - If not provided via command line, you'll be prompted to enter it interactively
 
 - `-o, --output <FILE>`: Output file for the private key (public key will be saved as `<file>.pub`)
-  - If not specified, defaults to `~/.ssh/id_ed25519` or `./id_ed25519` if the default path can't be determined
+  - If not specified, you'll be prompted interactively to choose:
+    - Default SSH location (`~/.ssh/id_ed25519`)
+    - Current directory (`./id_ed25519`)
+    - Custom location (enter path)
+  - Checks for existing files and prompts before overwriting
 
 - `-c, --comment <COMMENT>`: Comment to add to the public key (typically an email address)
   - This is added to the end of the public key and is useful for identifying the key owner
@@ -149,11 +191,15 @@ Verify that a key matches a mnemonic phrase.
 
 **Parameters:**
 
-- `<MNEMONIC>`: The BIP-39 mnemonic phrase to verify (required)
+- `<MNEMONIC>`: The BIP-39 mnemonic phrase to verify (optional)
   - Should be 12, 18, or 24 words to verify against the key
+  - If not provided via command line, you'll be prompted to enter it interactively
 
 - `-k, --key <FILE>`: The SSH key file to verify against
-  - If not specified, defaults to `~/.ssh/id_ed25519` or `./id_ed25519` if the default path can't be determined
+  - If not specified, you'll be prompted interactively to choose:
+    - Default SSH location (`~/.ssh/id_ed25519`)
+    - Current directory (`./id_ed25519`)
+    - Custom location (enter path)
   - The utility will check if this key was generated from the provided mnemonic phrase
 
 ### `version` Command (alias: `v`)
