@@ -5,10 +5,10 @@ MnemoSSH is a Rust-based library and command-line utility designed to generate a
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![Build](https://img.shields.io/github/actions/workflow/status/abkvme/mnemossh/rust.yml?label=build)](https://github.com/abkvme/mnemossh/actions/workflows/rust.yml)
 [![Tests](https://img.shields.io/github/actions/workflow/status/abkvme/mnemossh/rust.yml?label=tests&branch=main)](https://github.com/abkvme/mnemossh/actions/workflows/rust.yml)
+[![Clippy](https://img.shields.io/badge/Clippy-Checked-brightgreen)](https://github.com/abkvme/mnemossh/actions/workflows/rust.yml)
 [![codecov](https://codecov.io/gh/abkvme/mnemossh/branch/main/graph/badge.svg)](https://codecov.io/gh/abkvme/mnemossh)
 [![Crates.io](https://img.shields.io/crates/v/mnemossh.svg)](https://crates.io/crates/mnemossh)
-[![Clippy](https://img.shields.io/badge/Clippy-Checked-brightgreen)](https://github.com/abkvme/mnemossh/actions/workflows/rust.yml)
-[![Rust Format](https://img.shields.io/badge/Rust%20Format-rustfmt-blue)](https://github.com/abkvme/mnemossh/actions/workflows/rust.yml)
+
 
 ## Features
 
