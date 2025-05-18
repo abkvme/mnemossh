@@ -128,8 +128,28 @@ pub fn restore_command(
     // Parse the mnemonic phrase
     let mnemonic = Mnemonic::from_phrase(&mnemonic_phrase)?;
     
+    // Get comment interactively if not provided
+    let comment = match comment {
+        Some(c) => Some(c.to_string()),
+        None => {
+            term.write_line("\nEnter a comment for your SSH key (typically your email address):")?;
+            term.write_line("This will be added to the end of your public key.")?;
+            
+            let input = dialoguer::Input::<String>::new()
+                .with_prompt("Comment (email)")
+                .allow_empty(true)
+                .interact_text()?;
+                
+            if input.is_empty() {
+                None
+            } else {
+                Some(input)
+            }
+        }
+    };
+    
     // Generate the key pair from the mnemonic
-    let keypair = generate_keypair_from_mnemonic(&mnemonic, comment, passphrase.as_deref())?;
+    let keypair = generate_keypair_from_mnemonic(&mnemonic, comment.as_deref(), passphrase.as_deref())?;
     
     // Save the key pair
     let (private_path, public_path) = keypair.save_to_files(&output_path)?;

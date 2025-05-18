@@ -143,10 +143,30 @@ pub fn generate_command(
         }
     };
     
+    // Get comment interactively if not provided
+    let comment = match comment {
+        Some(c) => Some(c.to_string()),
+        None => {
+            term.write_line("\nEnter a comment for your SSH key (typically your email address):")?;
+            term.write_line("This will be added to the end of your public key.")?;
+            
+            let input = dialoguer::Input::<String>::new()
+                .with_prompt("Comment (email)")
+                .allow_empty(true)
+                .interact_text()?;
+                
+            if input.is_empty() {
+                None
+            } else {
+                Some(input)
+            }
+        }
+    };
+    
     // Generate new mnemonic and key pair
     let (mnemonic, keypair) = generate_new_keypair_with_mnemonic(
         mnemonic_length,
-        comment,
+        comment.as_deref(),
         passphrase.as_deref(),
     )?;
     
