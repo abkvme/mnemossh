@@ -1,6 +1,6 @@
 [package]
 name = "mnemossh"
-version = "0.1.2"
+version = "0.1.6"
 edition = "2024"
 authors = ["Ales Bykau <abkvme>"]
 description = "A library and CLI tool for generating and managing Ed25519 SSH keys using BIP-39 mnemonic phrases"
