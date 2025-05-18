@@ -50,6 +50,9 @@ pub enum Error {
     
     #[error("Dialog error: {0}")]
     DialogError(#[from] dialoguer::Error),
+    
+    #[error("Operation cancelled by user: {0}")]
+    UserCancelled(String),
 }
 
 /// Constructs a default path for storing SSH keys

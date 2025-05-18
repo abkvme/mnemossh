@@ -22,7 +22,68 @@ pub fn generate_command(
     mnemonic_file: Option<PathBuf>,
 ) -> Result<()> {
     let term = Term::stdout();
-    let output_path = output.unwrap_or_else(|| default_ssh_key_path().unwrap_or_else(|_| PathBuf::from("id_ed25519")));
+    
+    // Get the output path from command line or interactively
+    let output_path = match output {
+        Some(path) => path,
+        None => {
+            // User didn't specify path, use interactive mode
+            term.write_line("\nNo output path specified. Please select where to save the SSH key:")?;
+            
+            let default_path = default_ssh_key_path().unwrap_or_else(|_| PathBuf::from("id_ed25519"));
+            let current_dir = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
+            let current_path = current_dir.join("id_ed25519");
+            
+            term.write_line(&format!("  [0] Default SSH location: {}", style(&default_path.display()).cyan()))?;
+            term.write_line(&format!("  [1] Current directory: {}", style(&current_path.display()).cyan()))?;
+            term.write_line("  [2] Custom location")?;
+            
+            let selection = dialoguer::Select::new()
+                .with_prompt("Select path option")
+                .default(0)
+                .items(&["Default SSH location", "Current directory", "Custom location"])
+                .interact()?;
+            
+            match selection {
+                0 => default_path,
+                1 => current_path,
+                2 => {
+                    let input = dialoguer::Input::<String>::new()
+                        .with_prompt("Enter custom path for SSH key")
+                        .interact_text()?;
+                    PathBuf::from(input)
+                },
+                _ => unreachable!()
+            }
+        }
+    };
+    
+    // Check if the key files already exist and warn the user
+    let private_exists = output_path.exists();
+    let public_exists = output_path.with_extension("pub").exists();
+    
+    if private_exists || public_exists {
+        let files_str = match (private_exists, public_exists) {
+            (true, true) => "Private and public key files",
+            (true, false) => "Private key file",
+            (false, true) => "Public key file",
+            _ => unreachable!()
+        };
+        
+        term.write_line(&format!("\n{} {} already exist at the specified location.",
+            style("Warning:").yellow().bold(),
+            files_str
+        ))?;
+        
+        let confirm = dialoguer::Confirm::new()
+            .with_prompt("Do you want to overwrite the existing files?")
+            .default(false)
+            .interact()?;
+            
+        if !confirm {
+            return Err(Error::UserCancelled("Key generation was cancelled by the user".to_string()));
+        }
+    }
     
     // If output directory doesn't exist, create it
     if let Some(parent) = output_path.parent() {
@@ -132,7 +193,68 @@ pub fn restore_command(
     passphrase: Option<&str>,
 ) -> Result<()> {
     let term = Term::stdout();
-    let output_path = output.unwrap_or_else(|| default_ssh_key_path().unwrap_or_else(|_| PathBuf::from("id_ed25519")));
+    
+    // Get the output path from command line or interactively
+    let output_path = match output {
+        Some(path) => path,
+        None => {
+            // User didn't specify path, use interactive mode
+            term.write_line("\nNo output path specified. Please select where to restore the SSH key:")?;
+            
+            let default_path = default_ssh_key_path().unwrap_or_else(|_| PathBuf::from("id_ed25519"));
+            let current_dir = std::env::current_dir().unwrap_or_else(|_| PathBuf::from("."));
+            let current_path = current_dir.join("id_ed25519");
+            
+            term.write_line(&format!("  [0] Default SSH location: {}", style(&default_path.display()).cyan()))?;
+            term.write_line(&format!("  [1] Current directory: {}", style(&current_path.display()).cyan()))?;
+            term.write_line("  [2] Custom location")?;
+            
+            let selection = dialoguer::Select::new()
+                .with_prompt("Select path option")
+                .default(0)
+                .items(&["Default SSH location", "Current directory", "Custom location"])
+                .interact()?;
+            
+            match selection {
+                0 => default_path,
+                1 => current_path,
+                2 => {
+                    let input = dialoguer::Input::<String>::new()
+                        .with_prompt("Enter custom path for SSH key")
+                        .interact_text()?;
+                    PathBuf::from(input)
+                },
+                _ => unreachable!()
+            }
+        }
+    };
+    
+    // Check if the key files already exist and warn the user
+    let private_exists = output_path.exists();
+    let public_exists = output_path.with_extension("pub").exists();
+    
+    if private_exists || public_exists {
+        let files_str = match (private_exists, public_exists) {
+            (true, true) => "Private and public key files",
+            (true, false) => "Private key file",
+            (false, true) => "Public key file",
+            _ => unreachable!()
+        };
+        
+        term.write_line(&format!("\n{} {} already exist at the specified location.",
+            style("Warning:").yellow().bold(),
+            files_str
+        ))?;
+        
+        let confirm = dialoguer::Confirm::new()
+            .with_prompt("Do you want to overwrite the existing files?")
+            .default(false)
+            .interact()?;
+            
+        if !confirm {
+            return Err(Error::UserCancelled("Key restoration was cancelled by the user".to_string()));
+        }
+    }
     
     // If output directory doesn't exist, create it
     if let Some(parent) = output_path.parent() {
