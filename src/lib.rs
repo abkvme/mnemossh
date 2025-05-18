@@ -59,12 +59,15 @@ pub enum Error {
 
 /// Constructs a default path for storing SSH keys
 pub fn default_ssh_key_path() -> Result<PathBuf> {
-    let home_dir = dirs::home_dir().ok_or_else(|| {
-        Error::IoError(std::io::Error::new(
-            std::io::ErrorKind::NotFound,
-            "Home directory not found",
-        ))
-    })?;
+    let home_dir = directories::BaseDirs::new()
+        .ok_or_else(|| {
+            Error::IoError(std::io::Error::new(
+                std::io::ErrorKind::NotFound,
+                "Home directory not found",
+            ))
+        })?
+        .home_dir()
+        .to_owned();
 
     let ssh_dir = home_dir.join(".ssh");
 

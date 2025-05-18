@@ -43,8 +43,8 @@ fn test_expand_tilde() {
     let expanded = expand_tilde(tilde_path);
 
     // Should start with the home directory
-    if let Some(home_dir) = dirs::home_dir() {
-        let expected = home_dir.join("test/path");
+    if let Some(base_dirs) = directories::BaseDirs::new() {
+        let expected = base_dirs.home_dir().join("test/path");
         assert_eq!(expanded, expected);
     }
 
@@ -52,8 +52,8 @@ fn test_expand_tilde() {
     let tilde_only = "~";
     let expanded = expand_tilde(tilde_only);
 
-    if let Some(home_dir) = dirs::home_dir() {
-        assert_eq!(expanded, home_dir);
+    if let Some(base_dirs) = directories::BaseDirs::new() {
+        assert_eq!(expanded, base_dirs.home_dir());
     }
 
     // Test with a path without tilde
