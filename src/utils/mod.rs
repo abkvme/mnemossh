@@ -34,11 +34,12 @@ pub fn ensure_dir_exists(dir: &Path) -> Result<()> {
 /// Expand a tilde in a path string to the user's home directory
 pub fn expand_tilde(path: &str) -> PathBuf {
     if path.starts_with('~') {
-        if let Some(home_dir) = dirs::home_dir() {
+        if let Some(home_dir) = directories::BaseDirs::new() {
+            let home_dir = home_dir.home_dir();
             if path.len() > 1 {
                 home_dir.join(&path[2..])
             } else {
-                home_dir
+                home_dir.to_owned()
             }
         } else {
             PathBuf::from(path)
@@ -155,7 +156,10 @@ mod tests {
 
     #[test]
     fn test_expand_tilde() {
-        let home_dir = dirs::home_dir().unwrap();
+        let home_dir = directories::BaseDirs::new()
+            .expect("Failed to get base directories")
+            .home_dir()
+            .to_owned();
 
         let path = expand_tilde("~");
         assert_eq!(path, home_dir);
