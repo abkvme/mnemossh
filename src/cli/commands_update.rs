@@ -207,8 +207,27 @@ pub fn verify_command(
     // Read the public key from file
     let key_content = fs::read_to_string(key_path.with_extension("pub"))?;
     
-    // Compare the expected public key with the actual one
-    if key_content.trim() == expected_keypair.public_key_openssh().trim() {
+    // Extract just the key portion (without comment) for comparison
+    fn extract_key_without_comment(openssh_key: &str) -> &str {
+        // Format is: "ssh-ed25519 BASE64_DATA [comment]"
+        // We want just the "ssh-ed25519 BASE64_DATA" part
+        let parts: Vec<&str> = openssh_key.trim().splitn(3, ' ').collect();
+        if parts.len() >= 2 {
+            // Return the key type and base64 data without the comment
+            let key_without_comment = &openssh_key[0..parts[0].len() + 1 + parts[1].len()];
+            key_without_comment
+        } else {
+            // If there are fewer than 2 parts, just return the trimmed string
+            openssh_key.trim()
+        }
+    }
+    
+    // Extract key parts without comments
+    let existing_key_part = extract_key_without_comment(&key_content);
+    let expected_key_part = extract_key_without_comment(&expected_keypair.public_key_openssh());
+    
+    // Compare only the key portions, ignoring any comments
+    if existing_key_part == expected_key_part {
         term.write_line(&format!(
             "\n{} The key at {} matches the provided mnemonic phrase.",
             style("✓").green().bold(),
