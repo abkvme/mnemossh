@@ -141,3 +141,36 @@ fn test_is_dir_writable() {
         fs::set_permissions(&readonly_dir, perms).unwrap();
     }
 }
+
+#[test]
+fn test_is_file_writable_nonexistent_parent() {
+    let temp_dir = tempdir().unwrap();
+    // File in non-existent directory
+    let nonexistent_parent = temp_dir.path().join("does_not_exist").join("file.txt");
+
+    // Parent doesn't exist, so should not be writable
+    assert!(!is_file_writable(&nonexistent_parent), "File in non-existent parent should not be writable");
+}
+
+#[cfg(unix)]
+#[test]
+fn test_is_file_writable_readonly_parent() {
+    use std::os::unix::fs::PermissionsExt;
+
+    let temp_dir = tempdir().unwrap();
+    let readonly_dir = temp_dir.path().join("readonly");
+    fs::create_dir(&readonly_dir).unwrap();
+
+    // Make directory readonly
+    let mut perms = fs::metadata(&readonly_dir).unwrap().permissions();
+    perms.set_mode(0o555);
+    fs::set_permissions(&readonly_dir, perms.clone()).unwrap();
+
+    let file_in_readonly = readonly_dir.join("test.txt");
+    // File doesn't exist, parent is readonly
+    assert!(!is_file_writable(&file_in_readonly), "File in readonly dir should not be writable");
+
+    // Restore permissions for cleanup
+    perms.set_mode(0o755);
+    fs::set_permissions(&readonly_dir, perms).unwrap();
+}

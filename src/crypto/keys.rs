@@ -4,6 +4,7 @@
 
 use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64};
 use ed25519_dalek::{Signature, Signer, SigningKey, Verifier, VerifyingKey};
+use sha2::{Digest, Sha256};
 use std::fmt;
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -135,6 +136,58 @@ impl KeyPair {
     /// Get the verifying key (public key)
     pub fn verifying_key(&self) -> &VerifyingKey {
         &self.verifying_key
+    }
+
+    /// Calculate MD5 fingerprint of the public key
+    /// Returns fingerprint in OpenSSH format: MD5:xx:xx:xx:...
+    pub fn md5_fingerprint(&self) -> String {
+        // Parse the public key to get the raw key bytes
+        // Format: "ssh-ed25519 <base64> [comment]"
+        let parts: Vec<&str> = self.public_key_openssh.split_whitespace().collect();
+        if parts.len() < 2 {
+            return "Invalid key format".to_string();
+        }
+
+        // Decode the base64 portion
+        let key_data = match BASE64.decode(parts[1]) {
+            Ok(data) => data,
+            Err(_) => return "Failed to decode key".to_string(),
+        };
+
+        // Calculate MD5 hash
+        let result = md5::compute(&key_data);
+
+        // Format as colon-separated hex
+        let hex_pairs: Vec<String> = result.iter().map(|byte| format!("{:02x}", byte)).collect();
+        format!("MD5:{}", hex_pairs.join(":"))
+    }
+
+    /// Calculate SHA256 fingerprint of the public key
+    /// Returns fingerprint in OpenSSH format: SHA256:<base64>
+    pub fn sha256_fingerprint(&self) -> String {
+        // Parse the public key to get the raw key bytes
+        // Format: "ssh-ed25519 <base64> [comment]"
+        let parts: Vec<&str> = self.public_key_openssh.split_whitespace().collect();
+        if parts.len() < 2 {
+            return "Invalid key format".to_string();
+        }
+
+        // Decode the base64 portion
+        let key_data = match BASE64.decode(parts[1]) {
+            Ok(data) => data,
+            Err(_) => return "Failed to decode key".to_string(),
+        };
+
+        // Calculate SHA256 hash
+        let mut hasher = Sha256::new();
+        hasher.update(&key_data);
+        let result = hasher.finalize();
+
+        // Encode as base64 without padding (OpenSSH style)
+        let b64 = BASE64.encode(result);
+        // Remove trailing '=' padding to match OpenSSH format
+        let b64_no_padding = b64.trim_end_matches('=');
+        format!("SHA256:{}", b64_no_padding)
     }
 }
 

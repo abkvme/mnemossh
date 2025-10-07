@@ -84,3 +84,56 @@ fn test_default_ssh_key_path() {
         );
     }
 }
+
+#[test]
+fn test_key_gen_config_default() {
+    use mnemossh::KeyGenConfig;
+
+    let config = KeyGenConfig::default();
+
+    // Verify default values
+    assert!(config.output_path.to_string_lossy().contains("id_ed25519"));
+    assert!(config.comment.is_none());
+    assert!(config.passphrase.is_none());
+    assert!(config.mnemonic_file.is_none());
+}
+
+#[test]
+fn test_key_gen_config_display() {
+    use mnemossh::{KeyGenConfig, crypto::mnemonic::MnemonicLength};
+    use std::path::PathBuf;
+
+    let config = KeyGenConfig {
+        output_path: PathBuf::from("/test/path"),
+        comment: Some("test@example.com".to_string()),
+        passphrase: Some("secret".to_string()),
+        mnemonic_length: MnemonicLength::Words24,
+        mnemonic_file: Some(PathBuf::from("/test/mnemonic.txt")),
+    };
+
+    let display = format!("{}", config);
+
+    // Should contain path and comment but not passphrase
+    assert!(display.contains("/test/path"));
+    assert!(display.contains("test@example.com"));
+    assert!(display.contains("[redacted]")); // Passphrase should be redacted
+    assert!(!display.contains("secret")); // Actual passphrase should not appear
+}
+
+#[test]
+fn test_error_types() {
+    use mnemossh::Error;
+
+    // Test various error types can be created
+    let _err1 = Error::InvalidMnemonic("test".to_string());
+    let _err2 = Error::KeyGenerationFailed("test".to_string());
+    let _err3 = Error::InvalidKeyFormat("test".to_string());
+    let _err4 = Error::VerificationFailed("test".to_string());
+    let _err5 = Error::CryptoError("test".to_string());
+    let _err6 = Error::SshKeyError("test".to_string());
+    let _err7 = Error::UserCancelled("test".to_string());
+
+    // Test error display
+    let err = Error::InvalidMnemonic("bad phrase".to_string());
+    assert!(format!("{}", err).contains("bad phrase"));
+}

@@ -1,3 +1,4 @@
+use base64::Engine;
 use console::{Term, style};
 use dialoguer::Password;
 use std::fs;
@@ -170,9 +171,20 @@ pub fn restore_command(
     ))?;
 
     term.write_line(&format!(
-        "{} Public key restored to: {}\n",
+        "{} Public key restored to: {}",
         style("✓").green().bold(),
         style(public_path.display()).cyan()
+    ))?;
+
+    // Display key fingerprints
+    term.write_line(&format!(
+        "\n{} Key fingerprints:",
+        style("🔑").cyan().bold()
+    ))?;
+    term.write_line(&format!("  {}", style(keypair.md5_fingerprint()).dim()))?;
+    term.write_line(&format!(
+        "  {}\n",
+        style(keypair.sha256_fingerprint()).dim()
     ))?;
 
     Ok(())
@@ -239,6 +251,20 @@ pub fn verify_command(mnemonic_str: Option<&str>, key_path: Option<PathBuf>) -> 
             style("✓").green().bold(),
             style(key_path.display()).cyan()
         ))?;
+
+        // Display key fingerprints
+        term.write_line(&format!(
+            "\n{} Key fingerprints:",
+            style("🔑").cyan().bold()
+        ))?;
+        term.write_line(&format!(
+            "  {}",
+            style(expected_keypair.md5_fingerprint()).dim()
+        ))?;
+        term.write_line(&format!(
+            "  {}\n",
+            style(expected_keypair.sha256_fingerprint()).dim()
+        ))?;
     } else {
         term.write_line(&format!(
             "\n{} The key at {} does NOT match the provided mnemonic phrase.",
@@ -250,6 +276,117 @@ pub fn verify_command(mnemonic_str: Option<&str>, key_path: Option<PathBuf>) -> 
             "Key does not match mnemonic phrase".to_string(),
         ));
     }
+
+    Ok(())
+}
+
+/// Display information about an existing SSH key
+pub fn info_command(key_path: Option<PathBuf>) -> Result<()> {
+    let term = Term::stdout();
+    let key_path = key_path
+        .unwrap_or_else(|| default_ssh_key_path().unwrap_or_else(|_| PathBuf::from("id_ed25519")));
+
+    // Check if the public key file exists
+    let public_key_path = key_path.with_extension("pub");
+    if !public_key_path.exists() {
+        return Err(Error::IoError(std::io::Error::new(
+            std::io::ErrorKind::NotFound,
+            format!("Public key file not found: {}", public_key_path.display()),
+        )));
+    }
+
+    // Read the public key
+    let key_content = fs::read_to_string(&public_key_path)?;
+    let key_content = key_content.trim();
+
+    // Parse the key components
+    let parts: Vec<&str> = key_content.split_whitespace().collect();
+    if parts.is_empty() {
+        return Err(Error::InvalidKeyFormat("Empty key file".to_string()));
+    }
+
+    let key_type = parts.first().unwrap_or(&"unknown");
+    let comment = if parts.len() >= 3 {
+        parts[2..].join(" ")
+    } else {
+        String::from("(no comment)")
+    };
+
+    // Calculate fingerprints
+    // Parse the base64 key data
+    if parts.len() < 2 {
+        return Err(Error::InvalidKeyFormat(
+            "Invalid key format: missing key data".to_string(),
+        ));
+    }
+
+    let key_data = match base64::engine::general_purpose::STANDARD.decode(parts[1]) {
+        Ok(data) => data,
+        Err(_) => {
+            return Err(Error::InvalidKeyFormat(
+                "Failed to decode key data".to_string(),
+            ));
+        }
+    };
+
+    // Calculate fingerprints directly from the key data
+    let md5_fp = {
+        let result = md5::compute(&key_data);
+        let hex_pairs: Vec<String> = result.iter().map(|byte| format!("{:02x}", byte)).collect();
+        format!("MD5:{}", hex_pairs.join(":"))
+    };
+
+    let sha256_fp = {
+        use sha2::Digest;
+        let mut hasher = sha2::Sha256::new();
+        hasher.update(&key_data);
+        let result = hasher.finalize();
+        let b64 = base64::engine::general_purpose::STANDARD.encode(result);
+        let b64_no_padding = b64.trim_end_matches('=');
+        format!("SHA256:{}", b64_no_padding)
+    };
+
+    // Display key information
+    term.write_line(&format!(
+        "\n{} SSH Key Information",
+        style("🔑").cyan().bold()
+    ))?;
+
+    term.write_line(&format!(
+        "\n{} {}",
+        style("Key type:").bold(),
+        style(key_type).cyan()
+    ))?;
+
+    term.write_line(&format!(
+        "{} {}",
+        style("Comment:").bold(),
+        style(&comment).dim()
+    ))?;
+
+    term.write_line(&format!(
+        "{} {}",
+        style("Public key:").bold(),
+        style(public_key_path.display()).cyan()
+    ))?;
+
+    if key_path.exists() {
+        term.write_line(&format!(
+            "{} {}",
+            style("Private key:").bold(),
+            style(key_path.display()).cyan()
+        ))?;
+    } else {
+        term.write_line(&format!(
+            "{} {}",
+            style("Private key:").bold(),
+            style("(not found)").yellow()
+        ))?;
+    }
+
+    term.write_line(&format!("\n{} Fingerprints:", style("🔐").cyan().bold()))?;
+    term.write_line(&format!("  {}", style(md5_fp).dim()))?;
+    term.write_line(&format!("  {}\n", style(sha256_fp).dim()))?;
 
     Ok(())
 }

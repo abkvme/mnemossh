@@ -114,6 +114,21 @@ fn test_mnemonic_seed_generation() {
     assert_eq!(seed, seed2);
 }
 
+/// Test mnemonic Display trait (should redact for security)
+#[test]
+fn test_mnemonic_display() {
+    let phrase = "abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about";
+    let mnemonic = Mnemonic::from_phrase(phrase).unwrap();
+
+    // Test Display trait - should be redacted for security
+    let displayed = format!("{}", mnemonic);
+    assert_eq!(displayed, "[REDACTED MNEMONIC]");
+
+    // Test Debug trait - should also be redacted
+    let debugged = format!("{:?}", mnemonic);
+    assert!(debugged.contains("[REDACTED"));
+}
+
 /// Test that multiple new mnemonics are unique
 #[test]
 fn test_mnemonic_uniqueness() {

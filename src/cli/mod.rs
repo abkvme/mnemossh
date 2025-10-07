@@ -19,6 +19,7 @@ mod commands_update;
 
 pub use commands::generate_command;
 pub use commands::version_command;
+pub use commands_update::info_command;
 pub use commands_update::restore_command;
 pub use commands_update::verify_command;
 
@@ -138,6 +139,25 @@ pub enum Commands {
         key: Option<PathBuf>,
     },
 
+    /// Display information about an existing SSH key
+    #[clap(
+        name = "info",
+        alias = "i",
+        about = "Display information about an existing SSH key",
+        long_about = "Show detailed information about an existing SSH key, including key type, comment, fingerprints (MD5 and SHA256), and file paths."
+    )]
+    Info {
+        /// The SSH key file to display information about (defaults to ~/.ssh/id_ed25519)
+        #[clap(
+            short,
+            long,
+            value_name = "FILE",
+            help = "The SSH key file to display information about",
+            long_help = "Specify the path to the SSH key file. If not specified, defaults to ~/.ssh/id_ed25519."
+        )]
+        key: Option<PathBuf>,
+    },
+
     /// Display version information
     #[clap(
         name = "version",
@@ -191,6 +211,8 @@ pub fn run() -> Result<()> {
         Commands::Verify { mnemonic, key } => {
             commands_update::verify_command(mnemonic.as_deref(), key.clone())
         }
+
+        Commands::Info { key } => commands_update::info_command(key.clone()),
 
         Commands::Version => commands::version_command(),
     }
