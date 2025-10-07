@@ -4,6 +4,7 @@
 
 use mnemossh::crypto::keys::{generate_keypair_from_mnemonic, generate_new_keypair_with_mnemonic};
 use mnemossh::crypto::mnemonic::{Mnemonic, MnemonicLength};
+use mnemossh::default_ssh_key_path;
 use mnemossh::utils::ensure_dir_exists;
 use std::fs;
 use tempfile::tempdir;
@@ -61,4 +62,25 @@ fn test_full_workflow() {
     // Try with an invalid message - should fail
     let invalid_message = b"Wrong message";
     assert!(!recovered_keypair.verify(invalid_message, &signature));
+}
+
+#[test]
+fn test_default_ssh_key_path() {
+    // Test that default_ssh_key_path returns a valid path
+    let result = default_ssh_key_path();
+    assert!(result.is_ok(), "default_ssh_key_path should succeed");
+
+    let path = result.unwrap();
+
+    // The path should end with .ssh/id_ed25519
+    assert!(path.to_string_lossy().contains(".ssh"));
+    assert!(path.to_string_lossy().ends_with("id_ed25519"));
+
+    // The parent directory (.ssh) should exist after calling default_ssh_key_path
+    if let Some(parent) = path.parent() {
+        assert!(
+            parent.exists(),
+            ".ssh directory should exist after calling default_ssh_key_path"
+        );
+    }
 }

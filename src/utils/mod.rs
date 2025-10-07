@@ -69,10 +69,10 @@ pub fn is_file_writable(path: &Path) -> bool {
             }
 
             // If metadata check fails, try the actual write test
-            if let Ok(permissions) = fs::metadata(path).map(|m| m.permissions()) {
-                if permissions.readonly() {
-                    return false;
-                }
+            if let Ok(permissions) = fs::metadata(path).map(|m| m.permissions())
+                && permissions.readonly()
+            {
+                return false;
             }
         }
 
@@ -83,10 +83,10 @@ pub fn is_file_writable(path: &Path) -> bool {
     }
 
     // If the file doesn't exist, check if the parent directory is writable
-    if let Some(parent) = path.parent() {
-        if parent.exists() {
-            return is_dir_writable(parent);
-        }
+    if let Some(parent) = path.parent()
+        && parent.exists()
+    {
+        return is_dir_writable(parent);
     }
 
     false
@@ -112,10 +112,10 @@ pub fn is_dir_writable(path: &Path) -> bool {
             }
 
             // If metadata check fails, try the actual write test
-            if let Ok(permissions) = fs::metadata(path).map(|m| m.permissions()) {
-                if permissions.readonly() {
-                    return false;
-                }
+            if let Ok(permissions) = fs::metadata(path).map(|m| m.permissions())
+                && permissions.readonly()
+            {
+                return false;
             }
         }
 

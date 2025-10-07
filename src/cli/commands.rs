@@ -49,7 +49,7 @@ pub fn generate_command(
             let selection = dialoguer::Select::new()
                 .with_prompt("Select path option")
                 .default(0)
-                .items(&[
+                .items([
                     "Default SSH location",
                     "Current directory",
                     "Custom location",
@@ -143,7 +143,7 @@ pub fn generate_command(
             let selection = dialoguer::Select::new()
                 .with_prompt("Select mnemonic length")
                 .default(0) // Default to 24 words
-                .items(&["24 words", "18 words", "12 words"])
+                .items(["24 words", "18 words", "12 words"])
                 .interact()?;
 
             match selection {
