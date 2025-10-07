@@ -4,8 +4,8 @@
 
 use mnemossh::crypto::keys::{generate_keypair_from_mnemonic, generate_new_keypair_with_mnemonic};
 use mnemossh::crypto::mnemonic::{Mnemonic, MnemonicLength};
-use mnemossh::utils::ensure_dir_exists;
 use mnemossh::default_ssh_key_path;
+use mnemossh::utils::ensure_dir_exists;
 use std::fs;
 use tempfile::tempdir;
 
@@ -78,6 +78,9 @@ fn test_default_ssh_key_path() {
 
     // The parent directory (.ssh) should exist after calling default_ssh_key_path
     if let Some(parent) = path.parent() {
-        assert!(parent.exists(), ".ssh directory should exist after calling default_ssh_key_path");
+        assert!(
+            parent.exists(),
+            ".ssh directory should exist after calling default_ssh_key_path"
+        );
     }
 }
