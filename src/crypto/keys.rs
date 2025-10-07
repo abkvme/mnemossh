@@ -100,10 +100,10 @@ impl KeyPair {
         let public_key_path = path.with_extension("pub");
 
         // Ensure the directory exists
-        if let Some(parent) = path.parent() {
-            if !parent.exists() {
-                fs::create_dir_all(parent)?;
-            }
+        if let Some(parent) = path.parent()
+            && !parent.exists()
+        {
+            fs::create_dir_all(parent)?;
         }
 
         // Write the private and public keys

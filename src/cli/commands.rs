@@ -2,10 +2,10 @@
  * Command implementations for the mnemossh CLI
  */
 
-use chrono::Datelike;
 use console::{Term, style};
 use dialoguer::Password;
 use std::path::PathBuf;
+use time::OffsetDateTime;
 
 use crate::crypto::keys::generate_new_keypair_with_mnemonic;
 use crate::crypto::mnemonic::MnemonicLength;
@@ -49,7 +49,7 @@ pub fn generate_command(
             let selection = dialoguer::Select::new()
                 .with_prompt("Select path option")
                 .default(0)
-                .items(&[
+                .items([
                     "Default SSH location",
                     "Current directory",
                     "Custom location",
@@ -143,7 +143,7 @@ pub fn generate_command(
             let selection = dialoguer::Select::new()
                 .with_prompt("Select mnemonic length")
                 .default(0) // Default to 24 words
-                .items(&["24 words", "18 words", "12 words"])
+                .items(["24 words", "18 words", "12 words"])
                 .interact()?;
 
             match selection {
@@ -252,7 +252,7 @@ pub fn version_command() -> Result<()> {
     term.write_line(&format!(
         "Copyright (c) {} {}",
         env!("CARGO_PKG_AUTHORS"),
-        chrono::Local::now().year()
+        OffsetDateTime::now_utc().year()
     ))?;
 
     Ok(())
