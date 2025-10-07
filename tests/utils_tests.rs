@@ -3,9 +3,10 @@
  */
 
 use std::path::PathBuf;
+use std::fs;
 use tempfile::tempdir;
 
-use mnemossh::utils::{ensure_dir_exists, expand_tilde};
+use mnemossh::utils::{ensure_dir_exists, expand_tilde, is_file_writable, is_dir_writable};
 
 /// Test ensuring a directory exists
 #[test]
@@ -71,3 +72,57 @@ fn test_expand_tilde() {
 // it was unreliable across different operating systems and environments.
 // The actual functionality (error handling for invalid paths) is still covered
 // by normal error handling in the main code.
+
+#[test]
+fn test_is_file_writable() {
+    let temp_dir = tempdir().unwrap();
+
+    // Test with a writable file
+    let writable_file = temp_dir.path().join("writable.txt");
+    fs::write(&writable_file, "test").unwrap();
+    assert!(is_file_writable(&writable_file), "File should be writable");
+
+    // Test with a non-existent file in a writable directory
+    let non_existent = temp_dir.path().join("non_existent.txt");
+    // Should check parent directory writability
+    assert!(is_file_writable(&non_existent), "Non-existent file in writable dir should report as writable");
+
+    // Test with a readonly file
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        let readonly_file = temp_dir.path().join("readonly.txt");
+        fs::write(&readonly_file, "test").unwrap();
+        let mut perms = fs::metadata(&readonly_file).unwrap().permissions();
+        perms.set_mode(0o444); // readonly
+        fs::set_permissions(&readonly_file, perms).unwrap();
+        assert!(!is_file_writable(&readonly_file), "Readonly file should not be writable");
+    }
+}
+
+#[test]
+fn test_is_dir_writable() {
+    let temp_dir = tempdir().unwrap();
+
+    // Test with a writable directory
+    assert!(is_dir_writable(temp_dir.path()), "Temp directory should be writable");
+
+    // Test with a non-existent directory
+    let non_existent_dir = temp_dir.path().join("non_existent");
+    assert!(!is_dir_writable(&non_existent_dir), "Non-existent directory should not be writable");
+
+    // Test with a readonly directory
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        let readonly_dir = temp_dir.path().join("readonly_dir");
+        fs::create_dir(&readonly_dir).unwrap();
+        let mut perms = fs::metadata(&readonly_dir).unwrap().permissions();
+        perms.set_mode(0o555); // readonly
+        fs::set_permissions(&readonly_dir, perms.clone()).unwrap();
+        assert!(!is_dir_writable(&readonly_dir), "Readonly directory should not be writable");
+        // Restore permissions for cleanup
+        perms.set_mode(0o755);
+        fs::set_permissions(&readonly_dir, perms).unwrap();
+    }
+}
