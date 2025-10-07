@@ -44,7 +44,7 @@ pub fn restore_command(
             let selection = dialoguer::Select::new()
                 .with_prompt("Select path option")
                 .default(0)
-                .items(&[
+                .items([
                     "Default SSH location",
                     "Current directory",
                     "Custom location",
