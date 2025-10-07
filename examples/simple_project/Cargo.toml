@@ -1,0 +1,8 @@
+[package]
+name = "mnemossh-example"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+mnemossh = "0.1.9"
+anyhow = "1.0"

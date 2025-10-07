@@ -4,3 +4,13 @@ target/
 *.pdb
 .idea/
 tarpaulin-report.html
+
+# Example generated files
+examples/**/my_ssh_key
+examples/**/my_ssh_key.pub
+examples/**/example_key
+examples/**/example_key.pub
+examples/**/restored_key
+examples/**/restored_key.pub
+examples/**/protected_key
+examples/**/protected_key.pub
