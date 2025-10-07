@@ -260,10 +260,7 @@ fn test_fingerprints_consistency() {
 
     // Fingerprints should be identical
     assert_eq!(keypair1.md5_fingerprint(), keypair2.md5_fingerprint());
-    assert_eq!(
-        keypair1.sha256_fingerprint(),
-        keypair2.sha256_fingerprint()
-    );
+    assert_eq!(keypair1.sha256_fingerprint(), keypair2.sha256_fingerprint());
 }
 
 /// Test fingerprints are different for different keys
@@ -277,10 +274,7 @@ fn test_fingerprints_uniqueness() {
 
     // Fingerprints should be different
     assert_ne!(keypair1.md5_fingerprint(), keypair2.md5_fingerprint());
-    assert_ne!(
-        keypair1.sha256_fingerprint(),
-        keypair2.sha256_fingerprint()
-    );
+    assert_ne!(keypair1.sha256_fingerprint(), keypair2.sha256_fingerprint());
 }
 
 /// Test KeyPair::from_seed with short seed
@@ -332,7 +326,8 @@ fn test_keypair_save_nested_directory() {
 
     // Create a keypair and save it
     let mnemonic = Mnemonic::new(MnemonicLength::Words12).unwrap();
-    let keypair = generate_keypair_from_mnemonic(&mnemonic, Some("test@example.com"), None).unwrap();
+    let keypair =
+        generate_keypair_from_mnemonic(&mnemonic, Some("test@example.com"), None).unwrap();
 
     // Should create all parent directories
     let result = keypair.save_to_files(&nested_path);
@@ -363,7 +358,10 @@ fn test_keypair_verify_corrupted_signature() {
     }
 
     // Should return false (not panic)
-    assert!(!keypair.verify(message, &corrupted), "Should return false for corrupted signature");
+    assert!(
+        !keypair.verify(message, &corrupted),
+        "Should return false for corrupted signature"
+    );
 }
 
 #[cfg(unix)]
@@ -385,5 +383,9 @@ fn test_keypair_unix_permissions() {
     let mode = permissions.mode();
 
     // Check that permissions are 0600 (owner read/write only)
-    assert_eq!(mode & 0o777, 0o600, "Private key should have 0600 permissions");
+    assert_eq!(
+        mode & 0o777,
+        0o600,
+        "Private key should have 0600 permissions"
+    );
 }

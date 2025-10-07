@@ -149,7 +149,10 @@ fn test_is_file_writable_nonexistent_parent() {
     let nonexistent_parent = temp_dir.path().join("does_not_exist").join("file.txt");
 
     // Parent doesn't exist, so should not be writable
-    assert!(!is_file_writable(&nonexistent_parent), "File in non-existent parent should not be writable");
+    assert!(
+        !is_file_writable(&nonexistent_parent),
+        "File in non-existent parent should not be writable"
+    );
 }
 
 #[cfg(unix)]
@@ -168,7 +171,10 @@ fn test_is_file_writable_readonly_parent() {
 
     let file_in_readonly = readonly_dir.join("test.txt");
     // File doesn't exist, parent is readonly
-    assert!(!is_file_writable(&file_in_readonly), "File in readonly dir should not be writable");
+    assert!(
+        !is_file_writable(&file_in_readonly),
+        "File in readonly dir should not be writable"
+    );
 
     // Restore permissions for cleanup
     perms.set_mode(0o755);

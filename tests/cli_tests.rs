@@ -41,7 +41,10 @@ fn test_info_command_with_nonexistent_key() {
 
     // Test info command on non-existent key
     let result = info_command(Some(key_path));
-    assert!(result.is_err(), "info_command should fail with non-existent key");
+    assert!(
+        result.is_err(),
+        "info_command should fail with non-existent key"
+    );
 }
 
 #[test]
@@ -89,23 +92,39 @@ fn test_restore_and_verify_commands() {
     let phrase = "abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about";
 
     // Test restore command with all parameters (non-interactive)
-    let result = restore_command(Some(phrase), Some(key_path.clone()), Some("test@example.com"), Some(""));
-    assert!(result.is_ok(), "restore_command should succeed with all parameters provided");
+    let result = restore_command(
+        Some(phrase),
+        Some(key_path.clone()),
+        Some("test@example.com"),
+        Some(""),
+    );
+    assert!(
+        result.is_ok(),
+        "restore_command should succeed with all parameters provided"
+    );
 
     // Test verify command with a generated key
     let mnemonic = Mnemonic::from_phrase(phrase).unwrap();
-    let keypair = generate_keypair_from_mnemonic(&mnemonic, Some("test@example.com"), None).unwrap();
+    let keypair =
+        generate_keypair_from_mnemonic(&mnemonic, Some("test@example.com"), None).unwrap();
     let verify_key_path = temp_dir.path().join("verify_key");
     keypair.save_to_files(&verify_key_path).unwrap();
 
     // Verify should succeed with matching mnemonic
     let verify_result = verify_command(Some(phrase), Some(verify_key_path.clone()));
-    assert!(verify_result.is_ok(), "verify_command should succeed with matching mnemonic");
+    assert!(
+        verify_result.is_ok(),
+        "verify_command should succeed with matching mnemonic"
+    );
 
     // Verify should fail with different mnemonic
-    let different_phrase = "legal winner thank year wave sausage worth useful legal winner thank yellow";
+    let different_phrase =
+        "legal winner thank year wave sausage worth useful legal winner thank yellow";
     let verify_result_fail = verify_command(Some(different_phrase), Some(verify_key_path));
-    assert!(verify_result_fail.is_err(), "verify_command should fail with non-matching mnemonic");
+    assert!(
+        verify_result_fail.is_err(),
+        "verify_command should fail with non-matching mnemonic"
+    );
 }
 
 #[test]
@@ -113,7 +132,8 @@ fn test_key_pair_methods() {
     // Test additional KeyPair methods for coverage
     let phrase = "abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about";
     let mnemonic = Mnemonic::from_phrase(phrase).unwrap();
-    let keypair = generate_keypair_from_mnemonic(&mnemonic, Some("test@example.com"), None).unwrap();
+    let keypair =
+        generate_keypair_from_mnemonic(&mnemonic, Some("test@example.com"), None).unwrap();
 
     // Test verifying_key method
     let verifying_key = keypair.verifying_key();
