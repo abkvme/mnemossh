@@ -15,6 +15,8 @@ MnemoSSH is a Rust-based library and command-line utility designed to generate a
 - **Generate SSH keys from mnemonic phrases**: Create Ed25519 SSH keys deterministically from BIP-39 mnemonic phrases
 - **Create new mnemonics**: Generate cryptographically secure mnemonic phrases (12, 18, or 24 words)
 - **Restore keys**: Easily recover your SSH keys from your saved mnemonic phrase
+- **Key fingerprints**: Display MD5 and SHA256 fingerprints in OpenSSH format for all key operations
+- **Key inspection**: View detailed information about existing SSH keys, including fingerprints
 - **Compatible with OpenSSH**: Generated keys work with standard SSH tools and servers
 - **Passphrase protection**: Optionally encrypt your private keys with a passphrase
 - **Fully interactive**: Guided, interactive workflows when command-line parameters aren't provided
@@ -34,7 +36,7 @@ The binary will be available at `target/release/mnemossh`.
 
 ## Usage
 
-MnemoSSH provides four main commands: `generate`, `restore`, `verify`, and `version`. All commands support both their full name and their aliases (`gen`, `res`, `ver`, and `v` respectively).
+MnemoSSH provides five main commands: `generate`, `restore`, `verify`, `info`, and `version`. All commands support both their full name and their aliases (`gen`, `res`, `ver`, `i`, and `v` respectively).
 
 ### Generate a new SSH key with mnemonic
 
@@ -48,6 +50,19 @@ mnemossh generate
 **With all options:**
 ```bash
 mnemossh gen -o ~/.ssh/id_ed25519 -c user@example.com -l 24 -m ~/.ssh/mnemonic.txt -p mysecretpass
+```
+
+**Output includes fingerprints:**
+```
+✓ SSH keys saved successfully:
+  Private key: /Users/user/.ssh/id_ed25519
+  Public key:  /Users/user/.ssh/id_ed25519.pub
+
+🔑 Key fingerprints:
+  MD5:12:f8:7e:78:61:b4:bf:e2:de:24:15:96:4e:d4:72:53
+  SHA256:nThbg6kXUpJWGl7E1IGOCspRomTxdCARLviKw6E5SY8
+
+✓ Mnemonic saved to file: /Users/user/.ssh/mnemonic.txt
 ```
 
 ### Restore an SSH key from mnemonic
@@ -70,6 +85,17 @@ mnemossh restore "abandon ability able about ..."
 mnemossh res "abandon ability able about ..." -o ~/.ssh/id_ed25519 -c user@example.com -p mysecretpass
 ```
 
+**Output includes fingerprints:**
+```
+✓ SSH keys restored successfully:
+  Private key: /Users/user/.ssh/id_ed25519
+  Public key:  /Users/user/.ssh/id_ed25519.pub
+
+🔑 Key fingerprints:
+  MD5:12:f8:7e:78:61:b4:bf:e2:de:24:15:96:4e:d4:72:53
+  SHA256:nThbg6kXUpJWGl7E1IGOCspRomTxdCARLviKw6E5SY8
+```
+
 ### Verify key integrity
 
 The `verify` command checks that an existing SSH key matches a given mnemonic phrase. The mnemonic can be provided as a parameter or entered interactively.
@@ -88,6 +114,46 @@ mnemossh verify "abandon ability able about ..."
 **With key path specified:**
 ```bash
 mnemossh ver "abandon ability able about ..." -k ~/.ssh/id_ed25519
+```
+
+**Output includes fingerprints:**
+```
+✓ Key verification successful!
+
+🔑 Key fingerprints:
+  MD5:12:f8:7e:78:61:b4:bf:e2:de:24:15:96:4e:d4:72:53
+  SHA256:nThbg6kXUpJWGl7E1IGOCspRomTxdCARLviKw6E5SY8
+```
+
+### Display key information
+
+The `info` command displays detailed information about an existing SSH key, including its fingerprints.
+
+**Basic usage:**
+```bash
+mnemossh info
+# Uses default SSH location (~/.ssh/id_ed25519)
+```
+
+**With key path specified:**
+```bash
+mnemossh info -k ~/.ssh/id_ed25519
+# or using alias
+mnemossh i -k ~/.ssh/id_ed25519
+```
+
+**Example output:**
+```
+🔑 SSH Key Information
+
+Key Type:    ssh-ed25519
+Comment:     user@example.com
+
+Fingerprints:
+  MD5:     12:f8:7e:78:61:b4:bf:e2:de:24:15:96:4e:d4:72:53
+  SHA256:  nThbg6kXUpJWGl7E1IGOCspRomTxdCARLviKw6E5SY8
+
+Key File:    /Users/user/.ssh/id_ed25519.pub
 ```
 
 ### Display version information
@@ -208,6 +274,16 @@ Verify that a key matches a mnemonic phrase.
     - Custom location (enter path)
   - The utility will check if this key was generated from the provided mnemonic phrase
 
+### `info` Command (alias: `i`)
+
+Display information about an existing SSH key.
+
+**Parameters:**
+
+- `-k, --key <FILE>`: The SSH key file to inspect
+  - If not specified, uses the default SSH location (`~/.ssh/id_ed25519`)
+  - Displays key type, comment, and fingerprints (MD5 and SHA256)
+
 ### `version` Command (alias: `v`)
 
 Display version information about the MnemoSSH utility.
@@ -216,7 +292,7 @@ Display version information about the MnemoSSH utility.
 
 ## Library Usage
 
-MnemoSSH can be used as a library in other Rust projects:
+MnemoSSH can be used as a library in other Rust projects. For complete examples, see the [examples](examples/) directory.
 
 ```rust
 use mnemossh::{Mnemonic, MnemonicLength, generate_keypair_from_mnemonic};
@@ -230,9 +306,25 @@ let mnemonic = Mnemonic::from_phrase("abandon ability able about ...")?;
 // Generate a key pair
 let keypair = generate_keypair_from_mnemonic(&mnemonic, Some("user@example.com"), None)?;
 
+// Get fingerprints
+println!("MD5:     {}", keypair.md5_fingerprint());
+println!("SHA256:  {}", keypair.sha256_fingerprint());
+
 // Save the key pair
 let (private_path, public_path) = keypair.save_to_files("~/.ssh/id_ed25519")?;
 ```
+
+## Contributing
+
+We welcome contributions! Please see our [Contributing Guidelines](CONTRIBUTING.md) for details on how to get started, and our [Code of Conduct](CODE_OF_CONDUCT.md) for community guidelines.
+
+## Contact
+
+For questions, feedback, or discussions, you can reach out to the author on X: [@abkvme](https://x.com/abkvme)
+
+## Security
+
+For information about security best practices and how to report security vulnerabilities, please see our [Security Policy](SECURITY.md).
 
 ## Security Considerations
 

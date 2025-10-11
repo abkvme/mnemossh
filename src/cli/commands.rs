@@ -188,9 +188,20 @@ pub fn generate_command(
     ))?;
 
     term.write_line(&format!(
-        "{} Public key saved to: {}\n",
+        "{} Public key saved to: {}",
         style("✓").green().bold(),
         style(public_path.display()).cyan()
+    ))?;
+
+    // Display key fingerprints
+    term.write_line(&format!(
+        "\n{} Key fingerprints:",
+        style("🔑").cyan().bold()
+    ))?;
+    term.write_line(&format!("  {}", style(keypair.md5_fingerprint()).dim()))?;
+    term.write_line(&format!(
+        "  {}\n",
+        style(keypair.sha256_fingerprint()).dim()
     ))?;
 
     // Save or display the mnemonic phrase

@@ -204,3 +204,188 @@ fn test_keypair_debug_format() {
     // The public key should be included in the debug output
     assert!(debug_str.contains("public_key"));
 }
+
+/// Test MD5 fingerprint format
+#[test]
+fn test_md5_fingerprint_format() {
+    let phrase = "abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about";
+    let mnemonic = Mnemonic::from_phrase(phrase).unwrap();
+    let keypair = generate_keypair_from_mnemonic(&mnemonic, None, None).unwrap();
+
+    let md5_fp = keypair.md5_fingerprint();
+
+    // Check format: MD5:xx:xx:xx:... (16 hex pairs separated by colons)
+    assert!(md5_fp.starts_with("MD5:"));
+    let hex_part = md5_fp.strip_prefix("MD5:").unwrap();
+    let parts: Vec<&str> = hex_part.split(':').collect();
+    assert_eq!(parts.len(), 16, "MD5 fingerprint should have 16 hex pairs");
+
+    // Each part should be a 2-character hex string
+    for part in parts {
+        assert_eq!(part.len(), 2, "Each hex pair should be 2 characters");
+        assert!(
+            part.chars().all(|c| c.is_ascii_hexdigit()),
+            "Each character should be hex digit"
+        );
+    }
+}
+
+/// Test SHA256 fingerprint format
+#[test]
+fn test_sha256_fingerprint_format() {
+    let phrase = "abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about";
+    let mnemonic = Mnemonic::from_phrase(phrase).unwrap();
+    let keypair = generate_keypair_from_mnemonic(&mnemonic, None, None).unwrap();
+
+    let sha256_fp = keypair.sha256_fingerprint();
+
+    // Check format: SHA256:base64_string
+    assert!(sha256_fp.starts_with("SHA256:"));
+    let b64_part = sha256_fp.strip_prefix("SHA256:").unwrap();
+
+    // Base64 string should not be empty and should not have padding
+    assert!(!b64_part.is_empty());
+    assert!(!b64_part.ends_with('='), "OpenSSH format has no padding");
+}
+
+/// Test fingerprints are consistent for same key
+#[test]
+fn test_fingerprints_consistency() {
+    let phrase = "abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about";
+    let mnemonic = Mnemonic::from_phrase(phrase).unwrap();
+
+    // Generate two keypairs from the same mnemonic
+    let keypair1 = generate_keypair_from_mnemonic(&mnemonic, None, None).unwrap();
+    let keypair2 = generate_keypair_from_mnemonic(&mnemonic, None, None).unwrap();
+
+    // Fingerprints should be identical
+    assert_eq!(keypair1.md5_fingerprint(), keypair2.md5_fingerprint());
+    assert_eq!(keypair1.sha256_fingerprint(), keypair2.sha256_fingerprint());
+}
+
+/// Test fingerprints are different for different keys
+#[test]
+fn test_fingerprints_uniqueness() {
+    let mnemonic1 = Mnemonic::new(MnemonicLength::Words12).unwrap();
+    let mnemonic2 = Mnemonic::new(MnemonicLength::Words12).unwrap();
+
+    let keypair1 = generate_keypair_from_mnemonic(&mnemonic1, None, None).unwrap();
+    let keypair2 = generate_keypair_from_mnemonic(&mnemonic2, None, None).unwrap();
+
+    // Fingerprints should be different
+    assert_ne!(keypair1.md5_fingerprint(), keypair2.md5_fingerprint());
+    assert_ne!(keypair1.sha256_fingerprint(), keypair2.sha256_fingerprint());
+}
+
+/// Test KeyPair::from_seed with short seed
+#[test]
+fn test_keypair_from_seed_short() {
+    use mnemossh::crypto::keys::KeyPair;
+
+    // Create a seed that is too short (less than 32 bytes)
+    let short_seed = vec![0u8; 16];
+
+    let result = KeyPair::from_seed(&short_seed, None, None);
+    assert!(
+        result.is_err(),
+        "KeyPair::from_seed should fail with seed shorter than 32 bytes"
+    );
+}
+
+/// Test invalid signature verification
+#[test]
+fn test_keypair_invalid_signature_length() {
+    let mnemonic = Mnemonic::new(MnemonicLength::Words12).unwrap();
+    let keypair = generate_keypair_from_mnemonic(&mnemonic, None, None).unwrap();
+
+    let message = b"test message";
+
+    // Test with signature that's too short
+    let short_signature = vec![0u8; 32];
+    assert!(
+        !keypair.verify(message, &short_signature),
+        "Should return false for signature with invalid length"
+    );
+
+    // Test with signature that's too long
+    let long_signature = vec![0u8; 128];
+    assert!(
+        !keypair.verify(message, &long_signature),
+        "Should return false for signature with invalid length"
+    );
+}
+
+/// Test save_to_files with nested non-existent directory
+#[test]
+fn test_keypair_save_nested_directory() {
+    let temp_dir = tempdir().unwrap();
+    let nested_path = temp_dir.path().join("level1/level2/level3/test_key");
+
+    // Parent directories don't exist
+    assert!(!nested_path.parent().unwrap().exists());
+
+    // Create a keypair and save it
+    let mnemonic = Mnemonic::new(MnemonicLength::Words12).unwrap();
+    let keypair =
+        generate_keypair_from_mnemonic(&mnemonic, Some("test@example.com"), None).unwrap();
+
+    // Should create all parent directories
+    let result = keypair.save_to_files(&nested_path);
+    assert!(result.is_ok(), "Should create nested directories");
+
+    let (private_path, public_path) = result.unwrap();
+    assert!(private_path.exists());
+    assert!(public_path.exists());
+
+    // Verify parent directories were created
+    assert!(nested_path.parent().unwrap().exists());
+}
+
+/// Test verify with valid-length corrupted signature
+#[test]
+fn test_keypair_verify_corrupted_signature() {
+    let mnemonic = Mnemonic::new(MnemonicLength::Words12).unwrap();
+    let keypair = generate_keypair_from_mnemonic(&mnemonic, None, None).unwrap();
+
+    let message = b"test message";
+    let signature = keypair.sign(message);
+
+    // Create a corrupted signature with correct length (64 bytes) but wrong data
+    let mut corrupted = signature.clone();
+    // Corrupt multiple bytes to ensure it's invalid
+    for i in 0..8 {
+        corrupted[i] = corrupted[i].wrapping_add(1);
+    }
+
+    // Should return false (not panic)
+    assert!(
+        !keypair.verify(message, &corrupted),
+        "Should return false for corrupted signature"
+    );
+}
+
+#[cfg(unix)]
+#[test]
+fn test_keypair_unix_permissions() {
+    use std::os::unix::fs::PermissionsExt;
+
+    let temp_dir = tempdir().unwrap();
+    let key_path = temp_dir.path().join("test_key");
+
+    // Create and save a keypair
+    let mnemonic = Mnemonic::new(MnemonicLength::Words12).unwrap();
+    let keypair = generate_keypair_from_mnemonic(&mnemonic, None, None).unwrap();
+    let (private_path, _) = keypair.save_to_files(&key_path).unwrap();
+
+    // Check that private key has 0600 permissions on Unix
+    let metadata = fs::metadata(&private_path).unwrap();
+    let permissions = metadata.permissions();
+    let mode = permissions.mode();
+
+    // Check that permissions are 0600 (owner read/write only)
+    assert_eq!(
+        mode & 0o777,
+        0o600,
+        "Private key should have 0600 permissions"
+    );
+}
