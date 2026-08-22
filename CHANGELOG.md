@@ -5,6 +5,26 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### CI/CD
+- Split the single `rust.yml` workflow into `ci.yml` (tests, lint, coverage on
+  every push and pull request) and `release.yml`, which is triggered *only* by a
+  `v*.*.*` tag, so nothing can be released by an ordinary push.
+- A release now fails before building unless the pushed tag matches the version
+  in `Cargo.toml`, `Cargo.lock` agrees with the manifest (`--locked`), and it
+  warns when `CHANGELOG.md` has no section for the version.
+- `release.yml` reuses `ci.yml`, so a tag cannot ship untested code.
+- Release notes are taken from the matching `CHANGELOG.md` section, falling back
+  to the commit list since the previous tag.
+- Replaced the archived `actions-rs/*` actions with `dtolnay/rust-toolchain` and
+  `Swatinem/rust-cache`, and updated `actions/checkout`, `upload-artifact`,
+  `download-artifact`, and `action-gh-release` to current major versions.
+- Clippy now lints `--all-targets`, so test code is checked too, and the
+  `needless_range_loop` this surfaced in `tests/keys_tests.rs` is fixed.
+- README build badges now point at the new workflows.
+
+
 ## [0.1.11] - 2026-08-23
 
 ### Security

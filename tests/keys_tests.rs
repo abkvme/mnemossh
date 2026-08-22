@@ -353,8 +353,8 @@ fn test_keypair_verify_corrupted_signature() {
     // Create a corrupted signature with correct length (64 bytes) but wrong data
     let mut corrupted = signature.clone();
     // Corrupt multiple bytes to ensure it's invalid
-    for i in 0..8 {
-        corrupted[i] = corrupted[i].wrapping_add(1);
+    for byte in corrupted.iter_mut().take(8) {
+        *byte = byte.wrapping_add(1);
     }
 
     // Should return false (not panic)

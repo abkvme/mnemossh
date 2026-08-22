@@ -3,9 +3,9 @@
 MnemoSSH is a Rust-based library and command-line utility designed to generate and manage Ed25519 SSH keys using BIP-39 mnemonic phrases. It provides secure and reproducible key generation from mnemonic phrases, allowing easy backup and recovery of SSH keys.
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
-[![Build](https://img.shields.io/github/actions/workflow/status/abkvme/mnemossh/rust.yml?label=build)](https://github.com/abkvme/mnemossh/actions/workflows/rust.yml)
-[![Tests](https://img.shields.io/github/actions/workflow/status/abkvme/mnemossh/rust.yml?label=tests&branch=main)](https://github.com/abkvme/mnemossh/actions/workflows/rust.yml)
-[![Clippy](https://img.shields.io/badge/Clippy-Checked-brightgreen)](https://github.com/abkvme/mnemossh/actions/workflows/rust.yml)
+[![CI](https://img.shields.io/github/actions/workflow/status/abkvme/mnemossh/ci.yml?label=ci&branch=main)](https://github.com/abkvme/mnemossh/actions/workflows/ci.yml)
+[![Release](https://img.shields.io/github/actions/workflow/status/abkvme/mnemossh/release.yml?label=release)](https://github.com/abkvme/mnemossh/actions/workflows/release.yml)
+[![Clippy](https://img.shields.io/badge/Clippy-Checked-brightgreen)](https://github.com/abkvme/mnemossh/actions/workflows/ci.yml)
 [![codecov](https://codecov.io/gh/abkvme/mnemossh/branch/main/graph/badge.svg)](https://codecov.io/gh/abkvme/mnemossh)
 [![Crates.io](https://img.shields.io/crates/v/mnemossh.svg)](https://crates.io/crates/mnemossh)
 

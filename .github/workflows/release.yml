@@ -1,0 +1,196 @@
+name: Release
+
+# The ONLY workflow that publishes anything. It cannot be triggered by a push to
+# a branch or by a pull request — a release happens when, and only when, a
+# version tag is pushed.
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+
+permissions:
+  contents: read
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  verify-version:
+    name: Verify tag matches Cargo.toml
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Compare the pushed tag with the crate version
+        run: |
+          set -euo pipefail
+
+          tag_version="${GITHUB_REF_NAME#v}"
+          crate_version="$(awk '
+            /^\[package\]/ { in_package = 1; next }
+            /^\[/          { in_package = 0 }
+            in_package && /^version[[:space:]]*=/ { gsub(/"/, "", $3); print $3; exit }
+          ' Cargo.toml)"
+
+          echo "Tag:          ${GITHUB_REF_NAME} (version ${tag_version})"
+          echo "Cargo.toml:   ${crate_version}"
+
+          if [ -z "$crate_version" ]; then
+            echo "::error::Could not read the version out of Cargo.toml."
+            exit 1
+          fi
+
+          if [ "$tag_version" != "$crate_version" ]; then
+            echo "::error::Tag ${GITHUB_REF_NAME} does not match the Cargo.toml version (${crate_version}). Bump the version in Cargo.toml, commit it, delete the tag, and tag the new commit."
+            exit 1
+          fi
+
+          echo "Tag and crate version agree."
+
+      - name: Check the lock file matches Cargo.toml
+        # --locked fails rather than silently rewriting Cargo.lock, so a release
+        # can never ship a lock file that disagrees with the manifest.
+        run: cargo metadata --format-version 1 --no-deps --locked > /dev/null
+
+      - name: Check the changelog mentions this version
+        run: |
+          set -euo pipefail
+          version="${GITHUB_REF_NAME#v}"
+          if ! grep -q "^## \[${version}\]" CHANGELOG.md; then
+            echo "::warning::CHANGELOG.md has no '## [${version}]' section."
+          fi
+
+  # Reuse the full CI pipeline so a tag can never release untested code.
+  ci:
+    name: CI
+    needs: verify-version
+    uses: ./.github/workflows/ci.yml
+    secrets: inherit
+
+  build:
+    name: Build Release Binaries
+    needs: ci
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+            artifact_name: mnemossh
+            asset_name: mnemossh-linux-amd64
+          - os: ubuntu-latest
+            target: aarch64-unknown-linux-gnu
+            artifact_name: mnemossh
+            asset_name: mnemossh-linux-arm64
+          - os: macos-latest
+            target: x86_64-apple-darwin
+            artifact_name: mnemossh
+            asset_name: mnemossh-macos-amd64
+          - os: macos-latest
+            target: aarch64-apple-darwin
+            artifact_name: mnemossh
+            asset_name: mnemossh-macos-arm64
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+            artifact_name: mnemossh.exe
+            asset_name: mnemossh-windows-amd64.exe
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - name: Cache dependencies
+        uses: Swatinem/rust-cache@v2
+        with:
+          key: ${{ matrix.target }}
+
+      - name: Install cross-compilation tools (Linux ARM64)
+        if: matrix.target == 'aarch64-unknown-linux-gnu'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gcc-aarch64-linux-gnu
+
+      - name: Setup cross-compilation for ARM64 Linux
+        if: matrix.target == 'aarch64-unknown-linux-gnu'
+        run: |
+          mkdir -p ~/.cargo
+          {
+            echo '[target.aarch64-unknown-linux-gnu]'
+            echo 'linker = "aarch64-linux-gnu-gcc"'
+          } >> ~/.cargo/config.toml
+
+      - name: Build binary
+        run: cargo build --release --locked --target ${{ matrix.target }}
+
+      - name: Prepare binary for upload
+        shell: bash
+        run: |
+          mkdir -p ./artifacts
+          cp ./target/${{ matrix.target }}/release/${{ matrix.artifact_name }} ./artifacts/${{ matrix.asset_name }}
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.asset_name }}
+          path: ./artifacts/${{ matrix.asset_name }}
+
+  release:
+    name: Create GitHub Release
+    needs: build
+    runs-on: ubuntu-latest
+    # This job needs write permissions to create releases
+    permissions:
+      contents: write
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Download all workflow run artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: ./artifacts
+
+      - name: Generate release notes
+        run: |
+          set -euo pipefail
+          version="${GITHUB_REF_NAME#v}"
+
+          {
+            echo "## MnemoSSH ${GITHUB_REF_NAME}"
+            echo ""
+            # Prefer the changelog section for this version; fall back to the
+            # commit list since the previous tag.
+            if grep -q "^## \[${version}\]" CHANGELOG.md; then
+              awk -v version="## [${version}]" '
+                index($0, version) == 1 { printing = 1; next }
+                printing && /^## \[/    { exit }
+                printing                { print }
+              ' CHANGELOG.md
+            else
+              previous_tag="$(git describe --tags --abbrev=0 "${GITHUB_REF_NAME}^" 2>/dev/null || true)"
+              if [ -n "$previous_tag" ]; then
+                git log --pretty=format:'* %s' "${previous_tag}..${GITHUB_REF_NAME}"
+              else
+                git log --pretty=format:'* %s' "${GITHUB_REF_NAME}"
+              fi
+            fi
+          } > RELEASE_NOTES.md
+
+          cat RELEASE_NOTES.md
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: ./artifacts/**/*
+          body_path: RELEASE_NOTES.md
+          token: ${{ secrets.PERSONAL_ACCESS_TOKEN || secrets.GITHUB_TOKEN }}
+
+  # Publishing to crates.io stays manual: review the GitHub release first, then
+  # run `cargo publish` locally.
