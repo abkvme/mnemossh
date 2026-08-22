@@ -1,9 +1,27 @@
-debug/
+# --- Rust build artifacts ---
 target/
+debug/
 **/*.rs.bk
 *.pdb
-.idea/
+
+# --- Coverage reports ---
 tarpaulin-report.html
+tarpaulin-report.json
+cobertura.xml
+lcov.info
+
+# --- Generated keys and mnemonic phrases ---
+# This tool writes private keys and BIP-39 phrases; anything matching these must
+# never reach a commit. A leaked mnemonic is equivalent to a leaked private key.
+id_ed25519
+id_ed25519.pub
+id_rsa
+id_rsa.pub
+*.pem
+*.key
+mnemonic.txt
+phrase.txt
+*.mnemonic
 
 # Example generated files
 examples/**/my_ssh_key
@@ -14,3 +32,32 @@ examples/**/restored_key
 examples/**/restored_key.pub
 examples/**/protected_key
 examples/**/protected_key.pub
+
+# --- macOS ---
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+.Spotlight-V100
+.Trashes
+
+# --- Windows ---
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+
+# --- Linux ---
+*~
+.directory
+.Trash-*
+
+# --- Editors and IDEs ---
+.idea/
+.vscode/
+*.iml
+*.swp
+*.swo
+
+# --- Local tool configuration ---
+.claude/

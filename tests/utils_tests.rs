@@ -180,3 +180,134 @@ fn test_is_file_writable_readonly_parent() {
     perms.set_mode(0o755);
     fs::set_permissions(&readonly_dir, perms).unwrap();
 }
+
+/// Whether the current process can ignore file permissions (root can).
+fn running_as_root() -> bool {
+    #[cfg(unix)]
+    {
+        // SAFETY: getuid is always safe to call and cannot fail.
+        unsafe { libc_getuid() == 0 }
+    }
+    #[cfg(not(unix))]
+    {
+        false
+    }
+}
+
+#[cfg(unix)]
+unsafe extern "C" {
+    #[link_name = "getuid"]
+    fn libc_getuid() -> u32;
+}
+
+#[test]
+fn test_expand_tilde_edge_cases() {
+    use mnemossh::utils::expand_tilde;
+
+    // A bare tilde expands to the home directory itself.
+    if let Some(base_dirs) = directories::BaseDirs::new() {
+        assert_eq!(expand_tilde("~"), base_dirs.home_dir());
+    }
+
+    // Absolute and relative paths are returned unchanged.
+    assert_eq!(expand_tilde("/etc/ssh"), PathBuf::from("/etc/ssh"));
+    assert_eq!(
+        expand_tilde("relative/path"),
+        PathBuf::from("relative/path")
+    );
+    assert_eq!(expand_tilde(""), PathBuf::from(""));
+
+    // A tilde that is not the whole first component is not a home reference.
+    assert_eq!(expand_tilde("~user/keys"), PathBuf::from("~user/keys"));
+}
+
+#[test]
+fn test_is_file_writable_on_a_read_only_file() {
+    use mnemossh::utils::is_file_writable;
+    use std::os::unix::fs::PermissionsExt;
+
+    if running_as_root() {
+        eprintln!("skipping: root ignores file permissions");
+        return;
+    }
+
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("read_only");
+    fs::write(&path, "contents").unwrap();
+
+    let mut perms = fs::metadata(&path).unwrap().permissions();
+    perms.set_mode(0o400);
+    fs::set_permissions(&path, perms).unwrap();
+
+    assert!(!is_file_writable(&path), "a 0400 file is not writable");
+}
+
+#[test]
+fn test_is_file_writable_for_a_new_file_in_a_writable_directory() {
+    use mnemossh::utils::is_file_writable;
+
+    let dir = tempfile::tempdir().unwrap();
+
+    // The file does not exist yet, so writability follows the parent directory.
+    assert!(is_file_writable(&dir.path().join("not_created_yet")));
+}
+
+#[test]
+fn test_is_dir_writable_on_a_read_only_directory() {
+    use mnemossh::utils::is_dir_writable;
+    use std::os::unix::fs::PermissionsExt;
+
+    if running_as_root() {
+        eprintln!("skipping: root ignores directory permissions");
+        return;
+    }
+
+    let dir = tempfile::tempdir().unwrap();
+    let read_only = dir.path().join("read_only");
+    fs::create_dir(&read_only).unwrap();
+
+    let mut perms = fs::metadata(&read_only).unwrap().permissions();
+    perms.set_mode(0o500);
+    fs::set_permissions(&read_only, perms).unwrap();
+
+    let writable = is_dir_writable(&read_only);
+
+    // Restore write permission so the temporary directory can be cleaned up.
+    let mut perms = fs::metadata(&read_only).unwrap().permissions();
+    perms.set_mode(0o700);
+    fs::set_permissions(&read_only, perms).unwrap();
+
+    assert!(!writable, "a 0500 directory is not writable");
+}
+
+#[test]
+fn test_is_dir_writable_on_a_missing_directory() {
+    use mnemossh::utils::is_dir_writable;
+
+    let dir = tempfile::tempdir().unwrap();
+    assert!(!is_dir_writable(&dir.path().join("does_not_exist")));
+}
+
+#[test]
+fn test_ensure_dir_exists_is_idempotent() {
+    use mnemossh::utils::ensure_dir_exists;
+
+    let dir = tempfile::tempdir().unwrap();
+    let nested = dir.path().join("a").join("b").join("c");
+
+    ensure_dir_exists(&nested).unwrap();
+    assert!(nested.is_dir());
+
+    // Calling it again on an existing directory must still succeed.
+    ensure_dir_exists(&nested).unwrap();
+    assert!(nested.is_dir());
+}
+
+#[test]
+fn test_expand_tilde_handles_multibyte_characters() {
+    use mnemossh::utils::expand_tilde;
+
+    // Slicing blindly past the tilde used to panic on a multi-byte character.
+    assert_eq!(expand_tilde("~é/keys"), PathBuf::from("~é/keys"));
+    assert_eq!(expand_tilde("~ключ"), PathBuf::from("~ключ"));
+}

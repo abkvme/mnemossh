@@ -2,13 +2,21 @@
  * SSH key generation and handling
  */
 
+use aes::Aes256;
+use aes::cipher::{KeyIvInit, StreamCipher};
 use base64::{Engine as _, engine::general_purpose::STANDARD as BASE64};
+use bcrypt_pbkdf::bcrypt_pbkdf;
+use ctr::Ctr128BE;
 use ed25519_dalek::{Signature, Signer, SigningKey, Verifier, VerifyingKey};
+use rand::RngExt;
 use sha2::{Digest, Sha256};
 use std::fmt;
 use std::fs;
 use std::path::{Path, PathBuf};
-use zeroize::ZeroizeOnDrop;
+use zeroize::{Zeroize, ZeroizeOnDrop};
+
+/// AES-256 in counter mode, the cipher OpenSSH uses for encrypted private keys.
+type Aes256Ctr = Ctr128BE<Aes256>;
 
 use crate::crypto::mnemonic::{Mnemonic, MnemonicLength};
 use crate::{Error, Result};
@@ -45,7 +53,7 @@ impl KeyPair {
         let public_key_openssh = format_openssh_public_key(&verifying_key, comment)?;
 
         // Format the private key in OpenSSH format
-        let private_key_openssh = format_openssh_private_key(&signing_key, passphrase)?;
+        let private_key_openssh = format_openssh_private_key(&signing_key, comment, passphrase)?;
 
         Ok(Self {
             signing_key,
@@ -258,126 +266,147 @@ fn format_openssh_public_key(
     Ok(result)
 }
 
+/// Number of bcrypt-pbkdf rounds used when encrypting a private key.
+///
+/// Matches the default OpenSSH's `ssh-keygen` uses for new keys.
+const BCRYPT_ROUNDS: u32 = 16;
+
+/// Length of the random salt fed to bcrypt-pbkdf, in bytes.
+const BCRYPT_SALT_LEN: usize = 16;
+
+/// Cipher block size for `aes256-ctr`, in bytes.
+const AES_BLOCK_SIZE: usize = 16;
+
+/// Block size OpenSSH uses to pad unencrypted private keys, in bytes.
+const NONE_BLOCK_SIZE: usize = 8;
+
+/// Append a length-prefixed byte string, as defined by RFC 4251 section 5.
+fn put_string(buffer: &mut Vec<u8>, data: &[u8]) {
+    buffer.extend_from_slice(&(data.len() as u32).to_be_bytes());
+    buffer.extend_from_slice(data);
+}
+
+/// Build the `kdfoptions` blob for the bcrypt KDF: a salt followed by a round count.
+fn bcrypt_kdf_options(salt: &[u8], rounds: u32) -> Vec<u8> {
+    let mut options = Vec::new();
+    put_string(&mut options, salt);
+    options.extend_from_slice(&rounds.to_be_bytes());
+    options
+}
+
+/// Derive an AES-256-CTR key and IV from a passphrase using bcrypt-pbkdf.
+///
+/// OpenSSH derives both from a single KDF output: the first 32 bytes are the
+/// key and the following 16 bytes are the initial counter block.
+fn derive_key_and_iv(passphrase: &str, salt: &[u8], rounds: u32) -> Result<([u8; 32], [u8; 16])> {
+    let mut derived = [0u8; 48];
+    bcrypt_pbkdf(passphrase, salt, rounds, &mut derived)
+        .map_err(|e| Error::CryptoError(format!("Key derivation failed: {}", e)))?;
+
+    let mut key = [0u8; 32];
+    let mut iv = [0u8; 16];
+    key.copy_from_slice(&derived[..32]);
+    iv.copy_from_slice(&derived[32..]);
+    derived.zeroize();
+
+    Ok((key, iv))
+}
+
 /// Format an Ed25519 signing key in OpenSSH private key format
+///
+/// When a passphrase is supplied the private section is encrypted with
+/// `aes256-ctr`, keyed by bcrypt-pbkdf, exactly as OpenSSH does. Without one the
+/// private section is stored in the clear and the header says so.
 fn format_openssh_private_key(
     signing_key: &SigningKey,
+    comment: Option<&str>,
     passphrase: Option<&str>,
 ) -> Result<String> {
-    // This is a simplified implementation; a real one would need to handle
-    // the complex OpenSSH private key format with proper encryption if passphrase is provided
-
     let key_bytes = signing_key.to_bytes();
     let public_key_bytes = signing_key.verifying_key().to_bytes();
-
-    // OpenSSH private key format is complex; this is a minimal implementation
-    // that doesn't include encryption, but it's recognizable by OpenSSH
-
-    let mut buffer = Vec::new();
-
-    // Magic Header
-    let openssh_header = "-----BEGIN OPENSSH PRIVATE KEY-----\n";
-    let openssh_footer = "-----END OPENSSH PRIVATE KEY-----\n";
-
-    // OpenSSH private key format
-    let auth_magic = "openssh-key-v1";
-    buffer.extend_from_slice(auth_magic.as_bytes());
-    buffer.push(0); // null terminator
-
-    // No encryption by default (simplified)
-    let cipher_name = if passphrase.is_some() {
-        "aes256-ctr"
-    } else {
-        "none"
-    };
-    buffer.extend_from_slice(&(cipher_name.len() as u32).to_be_bytes());
-    buffer.extend_from_slice(cipher_name.as_bytes());
-
-    // KDF (key derivation function)
-    let kdf_name = if passphrase.is_some() {
-        "bcrypt"
-    } else {
-        "none"
-    };
-    buffer.extend_from_slice(&(kdf_name.len() as u32).to_be_bytes());
-    buffer.extend_from_slice(kdf_name.as_bytes());
-
-    // KDF options (empty for "none")
-    let kdf_options = if passphrase.is_some() {
-        // Real implementation would include salt and rounds
-        // This is a simplified placeholder
-        vec![0, 0, 0, 0]
-    } else {
-        vec![0, 0, 0, 0]
-    };
-    buffer.extend_from_slice(&kdf_options);
-
-    // Number of keys (always 1 for us)
-    buffer.extend_from_slice(&(1_u32).to_be_bytes());
-
-    // Public key section
-    let mut pub_key_section = Vec::new();
     let key_type = "ssh-ed25519";
-    pub_key_section.extend_from_slice(&(key_type.len() as u32).to_be_bytes());
-    pub_key_section.extend_from_slice(key_type.as_bytes());
-    pub_key_section.extend_from_slice(&(public_key_bytes.len() as u32).to_be_bytes());
-    pub_key_section.extend_from_slice(&public_key_bytes);
 
-    buffer.extend_from_slice(&(pub_key_section.len() as u32).to_be_bytes());
-    buffer.extend_from_slice(&pub_key_section);
+    // Pick the cipher and KDF up front; both the header and the padding depend on them.
+    let (cipher_name, kdf_name, block_size) = if passphrase.is_some() {
+        ("aes256-ctr", "bcrypt", AES_BLOCK_SIZE)
+    } else {
+        ("none", "none", NONE_BLOCK_SIZE)
+    };
 
-    // Private key section
+    // The salt has to be fresh for every key, so two keys encrypted with the
+    // same passphrase never share a derived key.
+    let salt = match passphrase {
+        Some(_) => {
+            let mut salt = [0u8; BCRYPT_SALT_LEN];
+            rand::rng().fill(&mut salt[..]);
+            Some(salt)
+        }
+        None => None,
+    };
+
+    // Public key section, repeated verbatim inside the private section below.
+    let mut pub_key_section = Vec::new();
+    put_string(&mut pub_key_section, key_type.as_bytes());
+    put_string(&mut pub_key_section, &public_key_bytes);
+
+    // Private key section: two matching checkints let a decrypting reader tell
+    // a wrong passphrase from a corrupt file.
     let mut priv_key_section = Vec::new();
-
-    // Checkints for corruption detection
     let checkint: u32 = rand::random();
     priv_key_section.extend_from_slice(&checkint.to_be_bytes());
     priv_key_section.extend_from_slice(&checkint.to_be_bytes());
+    put_string(&mut priv_key_section, key_type.as_bytes());
+    put_string(&mut priv_key_section, &public_key_bytes);
 
-    // Key type
-    priv_key_section.extend_from_slice(&(key_type.len() as u32).to_be_bytes());
-    priv_key_section.extend_from_slice(key_type.as_bytes());
+    // Ed25519 private keys are stored as the seed followed by the public key.
+    let mut full_key = Vec::with_capacity(key_bytes.len() + public_key_bytes.len());
+    full_key.extend_from_slice(&key_bytes);
+    full_key.extend_from_slice(&public_key_bytes);
+    put_string(&mut priv_key_section, &full_key);
+    full_key.zeroize();
 
-    // Public key
-    priv_key_section.extend_from_slice(&(public_key_bytes.len() as u32).to_be_bytes());
-    priv_key_section.extend_from_slice(&public_key_bytes);
+    put_string(&mut priv_key_section, comment.unwrap_or("").as_bytes());
 
-    // Private key (includes both private and public parts for Ed25519)
-    let full_key_len = key_bytes.len() + public_key_bytes.len();
-    priv_key_section.extend_from_slice(&(full_key_len as u32).to_be_bytes());
-    priv_key_section.extend_from_slice(&key_bytes);
-    priv_key_section.extend_from_slice(&public_key_bytes);
-
-    // Comment
-    let comment = passphrase.unwrap_or("");
-    priv_key_section.extend_from_slice(&(comment.len() as u32).to_be_bytes());
-    priv_key_section.extend_from_slice(comment.as_bytes());
-
-    // Padding to a multiple of the cipher block size (8 bytes for aes256-ctr)
-    let block_size = 8;
-    let padding_len = block_size - (priv_key_section.len() % block_size);
-    for i in 0..padding_len {
-        priv_key_section.push((i + 1) as u8);
+    // Pad with 1, 2, 3, ... up to the cipher block size.
+    let mut pad_byte = 1u8;
+    while priv_key_section.len() % block_size != 0 {
+        priv_key_section.push(pad_byte);
+        pad_byte += 1;
     }
 
-    // If a passphrase is provided, encrypt the private key section
-    // Note: In a real implementation, you would encrypt priv_key_section here
+    // Encrypt the padded private section in place.
+    if let (Some(passphrase), Some(salt)) = (passphrase, salt.as_ref()) {
+        let (mut key, mut iv) = derive_key_and_iv(passphrase, salt, BCRYPT_ROUNDS)?;
+        let mut cipher = Aes256Ctr::new(&key.into(), &iv.into());
+        cipher.apply_keystream(&mut priv_key_section);
+        key.zeroize();
+        iv.zeroize();
+    }
 
-    buffer.extend_from_slice(&(priv_key_section.len() as u32).to_be_bytes());
-    buffer.extend_from_slice(&priv_key_section);
+    let mut buffer = Vec::new();
+    buffer.extend_from_slice(b"openssh-key-v1");
+    buffer.push(0); // null terminator
+    put_string(&mut buffer, cipher_name.as_bytes());
+    put_string(&mut buffer, kdf_name.as_bytes());
+    match salt.as_ref() {
+        Some(salt) => put_string(&mut buffer, &bcrypt_kdf_options(salt, BCRYPT_ROUNDS)),
+        None => put_string(&mut buffer, &[]),
+    }
+    buffer.extend_from_slice(&1u32.to_be_bytes()); // number of keys
+    put_string(&mut buffer, &pub_key_section);
+    put_string(&mut buffer, &priv_key_section);
 
-    // Base64 encode the entire buffer
     let encoded = BASE64.encode(&buffer);
+    priv_key_section.zeroize();
 
-    // Format with line breaks (64 chars per line)
+    // Wrap the base64 payload between the PEM-style markers.
     let mut formatted = String::new();
-    formatted.push_str(openssh_header);
-    for i in 0..(encoded.len().div_ceil(70)) {
-        let start = i * 70;
-        let end = std::cmp::min((i + 1) * 70, encoded.len());
-        formatted.push_str(&encoded[start..end]);
+    formatted.push_str("-----BEGIN OPENSSH PRIVATE KEY-----\n");
+    for chunk in encoded.as_bytes().chunks(70) {
+        formatted.push_str(std::str::from_utf8(chunk).unwrap_or_default());
         formatted.push('\n');
     }
-    formatted.push_str(openssh_footer);
+    formatted.push_str("-----END OPENSSH PRIVATE KEY-----\n");
 
     Ok(formatted)
 }
@@ -444,5 +473,318 @@ mod tests {
 
         assert!(keypair.verify(message, &signature));
         assert!(!keypair.verify(b"wrong message", &signature));
+    }
+}
+
+#[cfg(test)]
+mod format_tests {
+    use super::*;
+    use crate::crypto::mnemonic::Mnemonic;
+
+    const PHRASE: &str = "abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about";
+
+    /// Decode the base64 body of an OpenSSH private key into its raw bytes.
+    fn decode_private_key(pem: &str) -> Vec<u8> {
+        let body: String = pem
+            .lines()
+            .filter(|line| !line.starts_with("-----"))
+            .collect();
+        BASE64
+            .decode(body)
+            .expect("private key body is valid base64")
+    }
+
+    /// Read one RFC 4251 length-prefixed string, advancing the cursor past it.
+    fn read_string<'a>(buffer: &'a [u8], pos: &mut usize) -> &'a [u8] {
+        let len_bytes: [u8; 4] = buffer[*pos..*pos + 4].try_into().expect("length prefix");
+        let len = u32::from_be_bytes(len_bytes) as usize;
+        *pos += 4;
+        let value = &buffer[*pos..*pos + len];
+        *pos += len;
+        value
+    }
+
+    /// The fields of an OpenSSH private key that precede the private section.
+    struct Header {
+        cipher: String,
+        kdf: String,
+        kdf_options: Vec<u8>,
+        public_section: Vec<u8>,
+        private_section: Vec<u8>,
+    }
+
+    fn parse_header(buffer: &[u8]) -> Header {
+        assert_eq!(&buffer[..15], b"openssh-key-v1\0", "auth magic");
+        let mut pos = 15;
+
+        let cipher = String::from_utf8(read_string(buffer, &mut pos).to_vec()).unwrap();
+        let kdf = String::from_utf8(read_string(buffer, &mut pos).to_vec()).unwrap();
+        let kdf_options = read_string(buffer, &mut pos).to_vec();
+
+        let num_keys = u32::from_be_bytes(buffer[pos..pos + 4].try_into().unwrap());
+        pos += 4;
+        assert_eq!(num_keys, 1, "exactly one key per file");
+
+        let public_section = read_string(buffer, &mut pos).to_vec();
+        let private_section = read_string(buffer, &mut pos).to_vec();
+        assert_eq!(pos, buffer.len(), "no trailing bytes");
+
+        Header {
+            cipher,
+            kdf,
+            kdf_options,
+            public_section,
+            private_section,
+        }
+    }
+
+    /// Assert the private section carries the expected key and comment, and that
+    /// it is padded with the 1, 2, 3, ... sequence OpenSSH expects.
+    fn assert_private_section(section: &[u8], expected_seed: &[u8], expected_comment: &str) {
+        let mut pos = 0;
+
+        let checkint1 = u32::from_be_bytes(section[pos..pos + 4].try_into().unwrap());
+        pos += 4;
+        let checkint2 = u32::from_be_bytes(section[pos..pos + 4].try_into().unwrap());
+        pos += 4;
+        assert_eq!(checkint1, checkint2, "checkints must match");
+
+        assert_eq!(read_string(section, &mut pos), b"ssh-ed25519");
+        let public_key = read_string(section, &mut pos).to_vec();
+        assert_eq!(public_key.len(), 32);
+
+        // Ed25519 private keys are stored as the 32-byte seed plus the public key.
+        let private_key = read_string(section, &mut pos);
+        assert_eq!(private_key.len(), 64);
+        assert_eq!(&private_key[..32], expected_seed, "seed round-trips");
+        assert_eq!(&private_key[32..], &public_key[..], "public half matches");
+
+        let comment = read_string(section, &mut pos);
+        assert_eq!(comment, expected_comment.as_bytes(), "comment round-trips");
+
+        for (offset, byte) in section[pos..].iter().enumerate() {
+            assert_eq!(*byte as usize, offset + 1, "padding is 1, 2, 3, ...");
+        }
+    }
+
+    fn seed_bytes() -> Vec<u8> {
+        let mnemonic = Mnemonic::from_phrase(PHRASE).unwrap();
+        mnemonic.to_seed()[..32].to_vec()
+    }
+
+    #[test]
+    fn test_unencrypted_key_structure() {
+        let mnemonic = Mnemonic::from_phrase(PHRASE).unwrap();
+        let keypair =
+            generate_keypair_from_mnemonic(&mnemonic, Some("alice@example.com"), None).unwrap();
+
+        let header = parse_header(&decode_private_key(keypair.private_key_openssh()));
+
+        assert_eq!(header.cipher, "none");
+        assert_eq!(header.kdf, "none");
+        assert!(
+            header.kdf_options.is_empty(),
+            "no KDF options without a passphrase"
+        );
+        assert_eq!(
+            header.private_section.len() % NONE_BLOCK_SIZE,
+            0,
+            "padded to the block size"
+        );
+
+        let mut pos = 0;
+        assert_eq!(
+            read_string(&header.public_section, &mut pos),
+            b"ssh-ed25519"
+        );
+        assert_eq!(
+            read_string(&header.public_section, &mut pos),
+            keypair.verifying_key().to_bytes()
+        );
+
+        assert_private_section(&header.private_section, &seed_bytes(), "alice@example.com");
+    }
+
+    #[test]
+    fn test_encrypted_key_structure() {
+        let mnemonic = Mnemonic::from_phrase(PHRASE).unwrap();
+        let keypair =
+            generate_keypair_from_mnemonic(&mnemonic, Some("alice@example.com"), Some("hunter2"))
+                .unwrap();
+
+        let header = parse_header(&decode_private_key(keypair.private_key_openssh()));
+
+        assert_eq!(header.cipher, "aes256-ctr");
+        assert_eq!(header.kdf, "bcrypt");
+        assert_eq!(
+            header.private_section.len() % AES_BLOCK_SIZE,
+            0,
+            "ciphertext is a whole number of AES blocks"
+        );
+
+        // KDF options are a salt followed by the round count.
+        let mut pos = 0;
+        let salt = read_string(&header.kdf_options, &mut pos);
+        assert_eq!(salt.len(), BCRYPT_SALT_LEN);
+        assert_ne!(salt, [0u8; BCRYPT_SALT_LEN], "salt is not all zeroes");
+        let rounds = u32::from_be_bytes(header.kdf_options[pos..pos + 4].try_into().unwrap());
+        assert_eq!(rounds, BCRYPT_ROUNDS);
+        assert_eq!(pos + 4, header.kdf_options.len(), "no trailing KDF options");
+    }
+
+    #[test]
+    fn test_encrypted_key_decrypts_with_the_passphrase() {
+        let mnemonic = Mnemonic::from_phrase(PHRASE).unwrap();
+        let keypair =
+            generate_keypair_from_mnemonic(&mnemonic, Some("alice@example.com"), Some("hunter2"))
+                .unwrap();
+
+        let header = parse_header(&decode_private_key(keypair.private_key_openssh()));
+
+        let mut pos = 0;
+        let salt = read_string(&header.kdf_options, &mut pos).to_vec();
+        let rounds = u32::from_be_bytes(header.kdf_options[pos..pos + 4].try_into().unwrap());
+
+        let (key, iv) = derive_key_and_iv("hunter2", &salt, rounds).unwrap();
+        let mut decrypted = header.private_section.clone();
+        Aes256Ctr::new(&key.into(), &iv.into()).apply_keystream(&mut decrypted);
+
+        assert_private_section(&decrypted, &seed_bytes(), "alice@example.com");
+    }
+
+    #[test]
+    fn test_wrong_passphrase_does_not_yield_matching_checkints() {
+        let mnemonic = Mnemonic::from_phrase(PHRASE).unwrap();
+        let keypair = generate_keypair_from_mnemonic(&mnemonic, None, Some("hunter2")).unwrap();
+
+        let header = parse_header(&decode_private_key(keypair.private_key_openssh()));
+
+        let mut pos = 0;
+        let salt = read_string(&header.kdf_options, &mut pos).to_vec();
+        let rounds = u32::from_be_bytes(header.kdf_options[pos..pos + 4].try_into().unwrap());
+
+        let (key, iv) = derive_key_and_iv("wrong passphrase", &salt, rounds).unwrap();
+        let mut decrypted = header.private_section.clone();
+        Aes256Ctr::new(&key.into(), &iv.into()).apply_keystream(&mut decrypted);
+
+        // This is the check OpenSSH uses to reject a wrong passphrase.
+        assert_ne!(
+            decrypted[..4],
+            decrypted[4..8],
+            "checkints must not match under the wrong key"
+        );
+    }
+
+    #[test]
+    fn test_encrypted_key_leaks_neither_passphrase_nor_seed() {
+        let passphrase = "correct horse battery staple";
+        let mnemonic = Mnemonic::from_phrase(PHRASE).unwrap();
+        let keypair =
+            generate_keypair_from_mnemonic(&mnemonic, Some("alice@example.com"), Some(passphrase))
+                .unwrap();
+
+        let raw = decode_private_key(keypair.private_key_openssh());
+        let seed = seed_bytes();
+
+        assert!(
+            !raw.windows(passphrase.len())
+                .any(|w| w == passphrase.as_bytes()),
+            "the passphrase must never appear in the key file"
+        );
+        assert!(
+            !raw.windows(seed.len()).any(|w| w == seed.as_slice()),
+            "the private seed must never appear in an encrypted key file"
+        );
+        assert!(
+            !keypair
+                .private_key_openssh()
+                .contains(&BASE64.encode(passphrase)),
+            "the passphrase must not survive base64 encoding either"
+        );
+    }
+
+    #[test]
+    fn test_each_encryption_uses_a_fresh_salt() {
+        let mnemonic = Mnemonic::from_phrase(PHRASE).unwrap();
+        let first =
+            generate_keypair_from_mnemonic(&mnemonic, Some("alice@example.com"), Some("hunter2"))
+                .unwrap();
+        let second =
+            generate_keypair_from_mnemonic(&mnemonic, Some("alice@example.com"), Some("hunter2"))
+                .unwrap();
+
+        // Same key, same passphrase, but the ciphertext must differ.
+        assert_eq!(first.public_key_openssh(), second.public_key_openssh());
+        assert_ne!(first.private_key_openssh(), second.private_key_openssh());
+
+        let salt_of = |keypair: &KeyPair| {
+            let header = parse_header(&decode_private_key(keypair.private_key_openssh()));
+            let mut pos = 0;
+            read_string(&header.kdf_options, &mut pos).to_vec()
+        };
+        assert_ne!(salt_of(&first), salt_of(&second), "salts must differ");
+    }
+
+    #[test]
+    fn test_missing_comment_is_stored_as_empty() {
+        let mnemonic = Mnemonic::from_phrase(PHRASE).unwrap();
+        let keypair = generate_keypair_from_mnemonic(&mnemonic, None, None).unwrap();
+
+        let header = parse_header(&decode_private_key(keypair.private_key_openssh()));
+        assert_private_section(&header.private_section, &seed_bytes(), "");
+    }
+
+    #[test]
+    fn test_passphrase_does_not_change_the_derived_key() {
+        let mnemonic = Mnemonic::from_phrase(PHRASE).unwrap();
+        let plain = generate_keypair_from_mnemonic(&mnemonic, Some("alice"), None).unwrap();
+        let encrypted =
+            generate_keypair_from_mnemonic(&mnemonic, Some("alice"), Some("hunter2")).unwrap();
+
+        // The passphrase protects the file; it is not an input to key derivation.
+        assert_eq!(plain.public_key_openssh(), encrypted.public_key_openssh());
+        assert_eq!(
+            plain.verifying_key().to_bytes(),
+            encrypted.verifying_key().to_bytes()
+        );
+    }
+
+    #[test]
+    fn test_known_public_key_for_the_bip39_test_vector() {
+        // Guards against any future change silently altering key derivation.
+        let mnemonic = Mnemonic::from_phrase(PHRASE).unwrap();
+        let keypair =
+            generate_keypair_from_mnemonic(&mnemonic, Some("alice@example.com"), None).unwrap();
+
+        assert_eq!(
+            keypair.public_key_openssh(),
+            "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIMV4XhhltwiTiv+BYdVzAGSWZjsaoQg045bcVmhposZq alice@example.com"
+        );
+    }
+
+    #[test]
+    fn test_from_seed_rejects_a_short_seed() {
+        let error = KeyPair::from_seed(&[0u8; 31], None, None).unwrap_err();
+        assert!(matches!(error, Error::KeyGenerationFailed(_)));
+    }
+
+    #[test]
+    fn test_verify_rejects_malformed_signatures() {
+        let mnemonic = Mnemonic::from_phrase(PHRASE).unwrap();
+        let keypair = generate_keypair_from_mnemonic(&mnemonic, None, None).unwrap();
+
+        let message = b"test message";
+        let mut signature = keypair.sign(message);
+
+        assert!(keypair.verify(message, &signature));
+        assert!(!keypair.verify(message, &signature[..63]), "wrong length");
+        assert!(!keypair.verify(message, &[]), "empty signature");
+
+        signature[0] ^= 0xff;
+        assert!(!keypair.verify(message, &signature), "tampered signature");
+        assert!(
+            !keypair.verify(b"different message", &keypair.sign(message)),
+            "signature is bound to the message"
+        );
     }
 }

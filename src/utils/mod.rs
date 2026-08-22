@@ -33,20 +33,20 @@ pub fn ensure_dir_exists(dir: &Path) -> Result<()> {
 
 /// Expand a tilde in a path string to the user's home directory
 pub fn expand_tilde(path: &str) -> PathBuf {
-    if path.starts_with('~') {
-        if let Some(home_dir) = directories::BaseDirs::new() {
-            let home_dir = home_dir.home_dir();
-            if path.len() > 1 {
-                home_dir.join(&path[2..])
-            } else {
-                home_dir.to_owned()
-            }
-        } else {
-            PathBuf::from(path)
-        }
-    } else {
-        PathBuf::from(path)
+    // Only a bare "~" or a "~/" prefix refers to the current user's home
+    // directory. "~other/path" names a different user's home, which we cannot
+    // resolve here, so it is left untouched rather than silently rewritten.
+    if (path == "~" || path.starts_with("~/"))
+        && let Some(base_dirs) = directories::BaseDirs::new()
+    {
+        let home_dir = base_dirs.home_dir();
+        return match path.strip_prefix("~/") {
+            Some(rest) => home_dir.join(rest),
+            None => home_dir.to_owned(),
+        };
     }
+
+    PathBuf::from(path)
 }
 
 /// Check if a file exists and is writable

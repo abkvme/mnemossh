@@ -52,6 +52,12 @@ mnemossh generate
 mnemossh gen -o ~/.ssh/id_ed25519 -c user@example.com -l 24 -m ~/.ssh/mnemonic.txt -p mysecretpass
 ```
 
+**Without a terminal (scripts, CI):** supply every option, using an empty value
+for anything you want to skip, so nothing prompts:
+```bash
+mnemossh gen -o ./id_ed25519 -c user@example.com -l 24 -m ./mnemonic.txt -p ""
+```
+
 **Output includes fingerprints:**
 ```
 ✓ SSH keys saved successfully:
@@ -220,9 +226,15 @@ Generate a new mnemonic phrase and SSH key pair.
 
 - `-c, --comment <COMMENT>`: Comment to add to the public key (typically an email address)
   - This is added to the end of the public key and is useful for identifying the key owner
+  - It is stored in the private key as well, so `ssh-add -l` shows it
+  - Pass an empty value (`-c ""`) for no comment without being prompted
 
 - `-p, --passphrase <PASSPHRASE>`: Passphrase for encrypting the private key
   - If not provided via command line, you'll be prompted interactively
+  - Pass an empty value (`-p ""`) to skip encryption without being prompted, which
+    is what you want when scripting
+  - The key is encrypted with AES-256-CTR, keyed by bcrypt-pbkdf, the same way
+    OpenSSH's own `ssh-keygen` does it
   - Use a strong passphrase for additional security
 
 - `-l, --length <LENGTH>`: Length of the mnemonic phrase (12, 18, or 24 words)
@@ -255,7 +267,10 @@ Restore an SSH key from a mnemonic phrase.
 
 - `-p, --passphrase <PASSPHRASE>`: Passphrase for encrypting the private key
   - If not provided via command line, you'll be prompted interactively
+  - Pass an empty value (`-p ""`) to skip encryption without being prompted
   - This creates a new encryption for the private key and does not need to match original passphrase
+  - The passphrase protects the key file only; it is not part of key derivation,
+    so the same mnemonic always restores the same key
 
 ### `verify` Command (alias: `ver`)
 
@@ -326,10 +341,16 @@ For questions, feedback, or discussions, you can reach out to the author on X: [
 
 For information about security best practices and how to report security vulnerabilities, please see our [Security Policy](SECURITY.md).
 
+> **Keys generated with a passphrase by version 0.1.10 or earlier are not
+> protected.** Those versions labelled the key `aes256-ctr`/`bcrypt` but stored it
+> unencrypted, with the passphrase in cleartext. Regenerate any such key from a
+> new mnemonic — see [SECURITY.md](SECURITY.md) for details. Keys generated
+> without a passphrase are unaffected.
+
 ## Security Considerations
 
 - **Keep your mnemonic phrase secure**: Anyone with access to your mnemonic phrase can generate your SSH key
-- **Consider using a passphrase**: For additional security, encrypt your private key with a passphrase
+- **Consider using a passphrase**: For additional security, encrypt your private key with a passphrase. Keys are encrypted with AES-256-CTR using a key derived by bcrypt-pbkdf, the same construction OpenSSH uses
 - **Offline generation**: For highest security, generate keys on an air-gapped machine
 
 ## License

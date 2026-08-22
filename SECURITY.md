@@ -4,7 +4,21 @@
 
 | Version | Supported          |
 | ------- | ------------------ |
-| 0.1.9   | :white_check_mark: |
+| 0.1.11  | :white_check_mark: |
+| < 0.1.11 | :x:               |
+
+## Known Issue in 0.1.10 and Earlier
+
+Versions up to and including 0.1.10 did **not** encrypt private keys when a
+passphrase was supplied. The key header claimed `aes256-ctr` and `bcrypt`, but
+the private key was stored in the clear and the passphrase was written into the
+key's comment field. Such files also could not be loaded by OpenSSH.
+
+If you generated a key with a passphrase using an affected version, treat both
+the key and the passphrase as compromised: generate a new mnemonic and key with
+0.1.11 or later, replace the public key wherever it was authorised, and stop
+using that passphrase elsewhere. Keys generated without a passphrase are
+unaffected.
 
 ## Reporting a Vulnerability
 

@@ -107,6 +107,9 @@ pub fn generate_command(
 
     // Get passphrase interactively if not provided
     let passphrase = match passphrase {
+        // An explicitly empty passphrase means "no encryption". Without this the
+        // command has no way to say so without a terminal to prompt on.
+        Some("") => None,
         Some(pass) => Some(pass.to_string()),
         None => {
             term.write_line("Generating a new SSH key pair from a BIP-39 mnemonic phrase.")?;
@@ -157,6 +160,8 @@ pub fn generate_command(
 
     // Get comment interactively if not provided
     let comment = match comment {
+        // Likewise, an explicitly empty comment means "no comment".
+        Some("") => None,
         Some(c) => Some(c.to_string()),
         None => {
             term.write_line("\nEnter a comment for your SSH key (typically your email address):")?;

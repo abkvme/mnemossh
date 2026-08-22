@@ -3,7 +3,7 @@
  */
 
 use bip39::{Language, Mnemonic as TinyMnemonic, MnemonicType, Seed};
-use rand::Rng;
+use rand::RngExt;
 use std::fmt;
 use std::path::Path;
 use zeroize::ZeroizeOnDrop;
