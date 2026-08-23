@@ -90,6 +90,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `download-artifact`, and `action-gh-release` to current major versions.
 - Clippy now lints `--all-targets`, so test code is checked too, and the
   `needless_range_loop` this surfaced in `tests/keys_tests.rs` is fixed.
+- The release job uses the built-in `GITHUB_TOKEN` instead of a personal access
+  token, which had expired and failed the release step with "Bad credentials".
 - README build badges now point at the new workflows.
 - Fixed the Windows build of the test suite: the permission tests are now gated
   behind `#[cfg(unix)]`, the OpenSSH interoperability tests run on Unix only,

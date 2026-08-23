@@ -190,7 +190,9 @@ jobs:
         with:
           files: ./artifacts/**/*
           body_path: RELEASE_NOTES.md
-          token: ${{ secrets.PERSONAL_ACCESS_TOKEN || secrets.GITHUB_TOKEN }}
+          # The built-in token is enough: this job requests contents: write
+          # above. A personal access token would only add an expiry to manage.
+          token: ${{ secrets.GITHUB_TOKEN }}
 
   # Publishing to crates.io stays manual: review the GitHub release first, then
   # run `cargo publish` locally.
