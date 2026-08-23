@@ -5,27 +5,7 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
-
-### CI/CD
-- Split the single `rust.yml` workflow into `ci.yml` (tests, lint, coverage on
-  every push and pull request) and `release.yml`, which is triggered *only* by a
-  `v*.*.*` tag, so nothing can be released by an ordinary push.
-- A release now fails before building unless the pushed tag matches the version
-  in `Cargo.toml`, `Cargo.lock` agrees with the manifest (`--locked`), and it
-  warns when `CHANGELOG.md` has no section for the version.
-- `release.yml` reuses `ci.yml`, so a tag cannot ship untested code.
-- Release notes are taken from the matching `CHANGELOG.md` section, falling back
-  to the commit list since the previous tag.
-- Replaced the archived `actions-rs/*` actions with `dtolnay/rust-toolchain` and
-  `Swatinem/rust-cache`, and updated `actions/checkout`, `upload-artifact`,
-  `download-artifact`, and `action-gh-release` to current major versions.
-- Clippy now lints `--all-targets`, so test code is checked too, and the
-  `needless_range_loop` this surfaced in `tests/keys_tests.rs` is fixed.
-- README build badges now point at the new workflows.
-
-
-## [0.1.11] - 2026-08-23
+## [0.1.12] - 2026-08-23
 
 ### Security
 - **Private key encryption is now actually performed.** Previous versions wrote
@@ -95,9 +75,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   tool directories, coverage output, and patterns for generated private keys and
   mnemonic files so a phrase or key cannot be committed by accident.
 
+### CI/CD
+- Split the single `rust.yml` workflow into `ci.yml` (tests, lint, coverage on
+  every push and pull request) and `release.yml`, which is triggered *only* by a
+  `v*.*.*` tag, so nothing can be released by an ordinary push.
+- A release now fails before building unless the pushed tag matches the version
+  in `Cargo.toml`, `Cargo.lock` agrees with the manifest (`--locked`), and it
+  warns when `CHANGELOG.md` has no section for the version.
+- `release.yml` reuses `ci.yml`, so a tag cannot ship untested code.
+- Release notes are taken from the matching `CHANGELOG.md` section, falling back
+  to the commit list since the previous tag.
+- Replaced the archived `actions-rs/*` actions with `dtolnay/rust-toolchain` and
+  `Swatinem/rust-cache`, and updated `actions/checkout`, `upload-artifact`,
+  `download-artifact`, and `action-gh-release` to current major versions.
+- Clippy now lints `--all-targets`, so test code is checked too, and the
+  `needless_range_loop` this surfaced in `tests/keys_tests.rs` is fixed.
+- README build badges now point at the new workflows.
+- Fixed the Windows build of the test suite: the permission tests are now gated
+  behind `#[cfg(unix)]`, the OpenSSH interoperability tests run on Unix only,
+  and the Unix-only `std::process::Command` import in `utils` no longer warns on
+  Windows. Verified by type-checking every target against
+  `x86_64-pc-windows-gnu`.
+
 ### Documentation
 - `SECURITY.md` now carries an advisory for the unencrypted-key issue in 0.1.10
-  and earlier, and lists 0.1.11 as the only supported version.
+  and earlier, and lists 0.1.12 as the only supported version.
 - `README.md` documents that `-p ""` skips encryption without prompting, and
   names the cipher and KDF used for encrypted keys.
 
@@ -151,7 +153,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Cross-platform support (Linux, macOS, Windows)
 - Support for 12, 18, and 24-word mnemonic phrases
 
-[0.1.11]: https://github.com/abkvme/mnemossh/releases/tag/v0.1.11
+[0.1.12]: https://github.com/abkvme/mnemossh/releases/tag/v0.1.12
 [0.1.10]: https://github.com/abkvme/mnemossh/releases/tag/v0.1.10
 [0.1.9]: https://github.com/abkvme/mnemossh/releases/tag/v0.1.9
 [0.1.7]: https://github.com/abkvme/mnemossh/releases/tag/v0.1.7

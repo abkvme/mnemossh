@@ -182,16 +182,10 @@ fn test_is_file_writable_readonly_parent() {
 }
 
 /// Whether the current process can ignore file permissions (root can).
+#[cfg(unix)]
 fn running_as_root() -> bool {
-    #[cfg(unix)]
-    {
-        // SAFETY: getuid is always safe to call and cannot fail.
-        unsafe { libc_getuid() == 0 }
-    }
-    #[cfg(not(unix))]
-    {
-        false
-    }
+    // SAFETY: getuid is always safe to call and cannot fail.
+    unsafe { libc_getuid() == 0 }
 }
 
 #[cfg(unix)]
@@ -221,6 +215,7 @@ fn test_expand_tilde_edge_cases() {
     assert_eq!(expand_tilde("~user/keys"), PathBuf::from("~user/keys"));
 }
 
+#[cfg(unix)]
 #[test]
 fn test_is_file_writable_on_a_read_only_file() {
     use mnemossh::utils::is_file_writable;
@@ -252,6 +247,7 @@ fn test_is_file_writable_for_a_new_file_in_a_writable_directory() {
     assert!(is_file_writable(&dir.path().join("not_created_yet")));
 }
 
+#[cfg(unix)]
 #[test]
 fn test_is_dir_writable_on_a_read_only_directory() {
     use mnemossh::utils::is_dir_writable;

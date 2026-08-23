@@ -3,8 +3,13 @@
  *
  * These are the tests that catch a key file which looks structurally plausible
  * but that `ssh` would refuse to load. They are skipped when `ssh-keygen` is
- * not installed so the suite still runs everywhere.
+ * not installed.
+ *
+ * Unix only: the key files are byte-identical on every platform, so running
+ * these against the Windows build of OpenSSH, whose CLI differs in how it
+ * reports permissions and errors, would add CI flakiness without adding cover.
  */
+#![cfg(unix)]
 
 use std::path::Path;
 use std::process::{Command, Output};

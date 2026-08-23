@@ -4,6 +4,8 @@
 
 use std::fs;
 use std::path::{Path, PathBuf};
+// Only the Unix uid lookup shells out, so the import is Unix-only too.
+#[cfg(unix)]
 use std::process::Command;
 
 use crate::Result;
