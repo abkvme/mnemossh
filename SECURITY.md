@@ -4,8 +4,8 @@
 
 | Version | Supported          |
 | ------- | ------------------ |
-| 0.1.12  | :white_check_mark: |
-| < 0.1.12 | :x:               |
+| 0.1.13  | :white_check_mark: |
+| < 0.1.13 | :x:               |
 
 ## Known Issue in 0.1.10 and Earlier
 
@@ -16,7 +16,7 @@ key's comment field. Such files also could not be loaded by OpenSSH.
 
 If you generated a key with a passphrase using an affected version, treat both
 the key and the passphrase as compromised: generate a new mnemonic and key with
-0.1.12 or later, replace the public key wherever it was authorised, and stop
+0.1.13 or later, replace the public key wherever it was authorised, and stop
 using that passphrase elsewhere. Keys generated without a passphrase are
 unaffected.
 
