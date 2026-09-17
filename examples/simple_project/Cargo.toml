@@ -4,5 +4,5 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
-mnemossh = "0.1.9"
+mnemossh = "0.1.13"
 anyhow = "1.0"
