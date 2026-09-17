@@ -115,18 +115,14 @@ impl KeyPair {
             fs::create_dir_all(parent)?;
         }
 
-        // Write the private and public keys
-        fs::write(&private_key_path, &self.private_key_openssh)?;
-        fs::write(&public_key_path, &self.public_key_openssh)?;
+        // The private key is created 0600 rather than written and then
+        // repaired: writing first and calling set_permissions afterwards leaves
+        // the key on disk under the process umask, readable by every local user,
+        // for as long as the two syscalls are apart.
+        crate::utils::write_secret_file(&private_key_path, self.private_key_openssh.as_bytes())?;
 
-        // Set appropriate permissions for the private key (0600)
-        #[cfg(unix)]
-        {
-            use std::os::unix::fs::PermissionsExt;
-            let mut perms = fs::metadata(&private_key_path)?.permissions();
-            perms.set_mode(0o600);
-            fs::set_permissions(&private_key_path, perms)?;
-        }
+        // The public key is not secret and keeps the usual umask-derived mode.
+        fs::write(&public_key_path, &self.public_key_openssh)?;
 
         Ok((private_key_path, public_key_path))
     }

@@ -389,3 +389,62 @@ fn test_keypair_unix_permissions() {
         "Private key should have 0600 permissions"
     );
 }
+
+/// Writing a key over an existing world-readable file must tighten it, and must
+/// truncate it rather than leaving a tail of the previous contents behind.
+#[cfg(unix)]
+#[test]
+fn test_private_key_tightens_existing_loose_file() {
+    use std::os::unix::fs::PermissionsExt;
+
+    let temp_dir = tempdir().unwrap();
+    let key_path = temp_dir.path().join("test_key");
+
+    let filler = "x".repeat(8192);
+    fs::write(&key_path, &filler).unwrap();
+    fs::set_permissions(&key_path, fs::Permissions::from_mode(0o644)).unwrap();
+
+    let mnemonic = Mnemonic::new(MnemonicLength::Words12).unwrap();
+    let keypair = generate_keypair_from_mnemonic(&mnemonic, None, None).unwrap();
+    let (private_path, _) = keypair.save_to_files(&key_path).unwrap();
+
+    let mode = fs::metadata(&private_path).unwrap().permissions().mode();
+    assert_eq!(
+        mode & 0o777,
+        0o600,
+        "Pre-existing private key should be tightened to 0600, was {:o}",
+        mode & 0o777
+    );
+
+    // The file must hold exactly the key and nothing else. The filler was far
+    // longer, so a missing truncation would leave a tail behind. Note the key is
+    // base64, whose alphabet includes the filler character, so the comparison
+    // has to be against the whole key rather than a search for leftover bytes.
+    let written = fs::read_to_string(&private_path).unwrap();
+    assert_eq!(written, keypair.private_key_openssh());
+    assert!(
+        written.len() < filler.len(),
+        "Previous contents should be truncated, not partly overwritten"
+    );
+}
+
+/// The public key is not secret and should not be locked down to 0600.
+#[cfg(unix)]
+#[test]
+fn test_public_key_is_not_owner_only() {
+    use std::os::unix::fs::PermissionsExt;
+
+    let temp_dir = tempdir().unwrap();
+    let key_path = temp_dir.path().join("test_key");
+
+    let mnemonic = Mnemonic::new(MnemonicLength::Words12).unwrap();
+    let keypair = generate_keypair_from_mnemonic(&mnemonic, None, None).unwrap();
+    let (_, public_path) = keypair.save_to_files(&key_path).unwrap();
+
+    let mode = fs::metadata(&public_path).unwrap().permissions().mode();
+    assert!(
+        mode & 0o044 != 0,
+        "Public key should stay readable, was {:o}",
+        mode & 0o777
+    );
+}

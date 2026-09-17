@@ -5,6 +5,28 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.14] - 2026-09-17
+
+### Security
+- **The mnemonic file is no longer world-readable.** `--mnemonic-file` wrote the
+  phrase with the process umask, commonly `0644`. The phrase regenerates the key
+  pair for as long as the key exists, so it was the most sensitive file the tool
+  produced and the only one left unprotected. It is now created `0600`.
+  - If you saved a phrase with 0.1.13 or earlier, check and fix its mode, and
+    consider the phrase exposed if the machine has other users.
+- **The private key no longer passes through a world-readable state.** It was
+  written first and `chmod`ed to `0600` afterwards, leaving it readable by every
+  local user for the gap between the two syscalls. Permissions are now part of
+  the `open(2)` call, so the file is never visible at a looser mode. A key file
+  that already exists with loose permissions is tightened before the new key is
+  written into it.
+
+### Added
+- A **Key Derivation** section in the README specifying, in full, how the SSH key
+  is derived from the phrase, so the key can be recovered without this program.
+  It also states plainly that the BIP-39 passphrase is always empty, that the key
+  passphrase is not part of derivation, and that the scheme is not SLIP-0010.
+
 ## [0.1.13] - 2026-09-17
 
 ### Changed
@@ -162,6 +184,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Cross-platform support (Linux, macOS, Windows)
 - Support for 12, 18, and 24-word mnemonic phrases
 
+[0.1.14]: https://github.com/abkvme/mnemossh/releases/tag/v0.1.14
 [0.1.13]: https://github.com/abkvme/mnemossh/releases/tag/v0.1.13
 [0.1.12]: https://github.com/abkvme/mnemossh/releases/tag/v0.1.12
 [0.1.10]: https://github.com/abkvme/mnemossh/releases/tag/v0.1.10

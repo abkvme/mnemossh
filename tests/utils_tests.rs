@@ -307,3 +307,36 @@ fn test_expand_tilde_handles_multibyte_characters() {
     assert_eq!(expand_tilde("~é/keys"), PathBuf::from("~é/keys"));
     assert_eq!(expand_tilde("~ключ"), PathBuf::from("~ключ"));
 }
+
+/// `write_secret_file` is the single place that decides how secret material
+/// reaches disk, so it is tested directly as well as through its callers.
+#[cfg(unix)]
+#[test]
+fn test_write_secret_file_creates_owner_only() {
+    use mnemossh::utils::write_secret_file;
+    use std::os::unix::fs::PermissionsExt;
+
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("secret");
+
+    write_secret_file(&path, b"top secret").unwrap();
+
+    let mode = std::fs::metadata(&path).unwrap().permissions().mode();
+    assert_eq!(mode & 0o777, 0o600, "was {:o}", mode & 0o777);
+    assert_eq!(std::fs::read(&path).unwrap(), b"top secret");
+}
+
+/// A second write must not leave any of the first write's bytes behind.
+#[cfg(unix)]
+#[test]
+fn test_write_secret_file_truncates() {
+    use mnemossh::utils::write_secret_file;
+
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("secret");
+
+    write_secret_file(&path, b"a much longer original value").unwrap();
+    write_secret_file(&path, b"short").unwrap();
+
+    assert_eq!(std::fs::read(&path).unwrap(), b"short");
+}

@@ -95,11 +95,13 @@ impl Mnemonic {
         })
     }
 
-    /// Save the mnemonic phrase to a file
+    /// Save the mnemonic phrase to a file readable only by its owner
+    ///
+    /// The phrase regenerates the key pair for as long as the key exists, which
+    /// makes it strictly more sensitive than the private key file. It is written
+    /// `0600` from the moment it is created, never world-readable in between.
     pub fn save_to_file(&self, path: impl AsRef<Path>) -> Result<()> {
-        std::fs::write(path, self.phrase()).map_err(Error::IoError)?;
-
-        Ok(())
+        crate::utils::write_secret_file(path.as_ref(), self.phrase().as_bytes())
     }
 
     /// Generate a seed suitable for key derivation

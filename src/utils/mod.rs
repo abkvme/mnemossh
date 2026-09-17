@@ -133,6 +133,52 @@ pub fn is_dir_writable(path: &Path) -> bool {
     false
 }
 
+/// Write secret material to a file that is never readable by anyone but the owner.
+///
+/// The obvious `fs::write` followed by `set_permissions` leaves a window in
+/// which the file exists on disk with whatever the process umask allows —
+/// commonly `0644`. Anything holding a secret has to be created `0600` in the
+/// first place, so the permissions are part of the `open(2)` call rather than a
+/// repair applied afterwards.
+///
+/// An existing file is also re-restricted before its new contents are written,
+/// because `mode` only takes effect when the file is created. Truncation is
+/// deliberately deferred until after that, so a file that is already on disk
+/// with loose permissions is locked down before it holds the new secret.
+///
+/// On Windows the file inherits the ACLs of its parent directory; restricting
+/// those needs platform APIs this crate does not otherwise depend on. The path
+/// is unchanged from previous releases, and the caller is expected to keep such
+/// files inside an already-protected directory.
+pub fn write_secret_file(path: &Path, contents: &[u8]) -> Result<()> {
+    use std::io::Write;
+
+    let mut options = fs::OpenOptions::new();
+    options.write(true).create(true);
+
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::OpenOptionsExt;
+        options.mode(0o600);
+    }
+
+    let mut file = options.open(path)?;
+
+    // `mode` above only applies to a newly created file, so an existing one is
+    // tightened here, before it is truncated and refilled.
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        file.set_permissions(fs::Permissions::from_mode(0o600))?;
+    }
+
+    file.set_len(0)?;
+    file.write_all(contents)?;
+    file.sync_all()?;
+
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

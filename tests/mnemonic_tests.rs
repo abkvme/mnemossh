@@ -159,3 +159,59 @@ fn test_mnemonic_formatting() {
     assert_eq!(debug_str, "Mnemonic { [REDACTED] }");
     assert_eq!(display_str, "[REDACTED MNEMONIC]");
 }
+
+/// The mnemonic regenerates the key forever, so its file must be owner-only.
+#[cfg(unix)]
+#[test]
+fn test_mnemonic_file_is_owner_only() {
+    use std::os::unix::fs::PermissionsExt;
+
+    let dir = tempdir().unwrap();
+    let path = dir.path().join("phrase.txt");
+
+    let mnemonic = Mnemonic::new(MnemonicLength::Words24).unwrap();
+    mnemonic.save_to_file(&path).unwrap();
+
+    let mode = fs::metadata(&path).unwrap().permissions().mode();
+    assert_eq!(
+        mode & 0o777,
+        0o600,
+        "Mnemonic file should be 0600, was {:o}",
+        mode & 0o777
+    );
+
+    // The contents still have to be the phrase itself.
+    assert_eq!(fs::read_to_string(&path).unwrap(), mnemonic.phrase());
+}
+
+/// Saving over a file that already exists with loose permissions must tighten
+/// it, because `mode` on open only applies when the file is created.
+#[cfg(unix)]
+#[test]
+fn test_mnemonic_file_tightens_existing_loose_file() {
+    use std::os::unix::fs::PermissionsExt;
+
+    let dir = tempdir().unwrap();
+    let path = dir.path().join("phrase.txt");
+
+    fs::write(
+        &path,
+        "placeholder that is longer than the phrase we write next",
+    )
+    .unwrap();
+    fs::set_permissions(&path, fs::Permissions::from_mode(0o644)).unwrap();
+
+    let mnemonic = Mnemonic::new(MnemonicLength::Words12).unwrap();
+    mnemonic.save_to_file(&path).unwrap();
+
+    let mode = fs::metadata(&path).unwrap().permissions().mode();
+    assert_eq!(
+        mode & 0o777,
+        0o600,
+        "Pre-existing mnemonic file should be tightened to 0600, was {:o}",
+        mode & 0o777
+    );
+
+    // The longer placeholder must be fully truncated, not partly overwritten.
+    assert_eq!(fs::read_to_string(&path).unwrap(), mnemonic.phrase());
+}

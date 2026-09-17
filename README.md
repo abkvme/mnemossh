@@ -347,6 +347,53 @@ For information about security best practices and how to report security vulnera
 > new mnemonic — see [SECURITY.md](SECURITY.md) for details. Keys generated
 > without a passphrase are unaffected.
 
+## Key Derivation
+
+The whole point of a mnemonic is that the key can be recovered without this
+program. The derivation is therefore specified here in full, so anyone can
+reimplement it from the phrase alone.
+
+```
+entropy   = BIP-39 decode(phrase)                       # 128, 192 or 256 bits
+seed      = PBKDF2-HMAC-SHA512(
+                password = NFKD(phrase),
+                salt     = "mnemonic",                   # empty BIP-39 passphrase
+                rounds   = 2048,
+                length   = 64 bytes)
+ed25519_seed = seed[0..32]                               # first half, second half unused
+signing_key  = Ed25519 private key from ed25519_seed     # RFC 8032 secret scalar seed
+```
+
+The public key, the OpenSSH key files, and the fingerprints all follow from
+`signing_key` by the ordinary OpenSSH rules.
+
+Three consequences worth being explicit about:
+
+- **The BIP-39 passphrase is always empty.** There is no "25th word". The phrase
+  alone reproduces the key, so anyone who reads it owns the key permanently.
+- **The key passphrase is not part of derivation.** It encrypts the private key
+  file at rest and nothing more. Changing it re-encrypts the same key; it does
+  not produce a different one.
+- **This is not SLIP-0010 or BIP32-Ed25519.** There is no derivation path and no
+  hardened child derivation, so one mnemonic yields exactly one SSH key. A wallet
+  tool that accepts the same phrase will not produce this key.
+
+Reproducing the derivation with standard tools, for the canonical all-`abandon`
+test vector:
+
+```bash
+# seed = 5eb00bbddcf069084889a8ab9155568165f5c453ccb85e70811aaed6f6da5fc1...
+python3 -c '
+import hashlib
+phrase = "abandon " * 11 + "about"
+seed = hashlib.pbkdf2_hmac("sha512", phrase.encode(), b"mnemonic", 2048, 64)
+print("ed25519 seed:", seed[:32].hex())
+'
+```
+
+Feeding those 32 bytes to any Ed25519 implementation yields the same key
+`mnemossh` writes for that phrase.
+
 ## Security Considerations
 
 - **Keep your mnemonic phrase secure**: Anyone with access to your mnemonic phrase can generate your SSH key
