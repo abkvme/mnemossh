@@ -180,8 +180,15 @@ mod tests {
         // The seed should be 64 bytes (512 bits)
         assert_eq!(seed.len(), 64);
 
-        // tiny-bip39 v2.0.0 is generating "5eb00bbddcf06908" for this test vector
-        // which slightly differs from the expected BIP-39 test vector "5eb00bbddcf069b3"
-        assert_eq!(hex::encode(&seed[..8]), "5eb00bbddcf06908");
+        // This is the canonical BIP-39 seed for the all-"abandon" phrase with an
+        // empty passphrase, reproducible with any PBKDF2-HMAC-SHA512 at 2048
+        // rounds over the salt "mnemonic". An earlier comment here claimed
+        // tiny-bip39 deviated from the published vector; it does not, and the
+        // value it called "expected" appears in no BIP-39 test vector.
+        assert_eq!(
+            hex::encode(&seed),
+            "5eb00bbddcf069084889a8ab9155568165f5c453ccb85e70811aaed6f6da5fc1\
+             9a5ac40b389cd370d086206dec8aa6c43daea6690f20ad3d8d48b2d2ce9e38e4"
+        );
     }
 }
