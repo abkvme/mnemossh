@@ -5,9 +5,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [0.1.14] - 2026-09-17
+## [0.1.14] - 2026-11-18
 
 ### Security
+- **Updated `ctutils` to 0.4.8** (RUSTSEC-2026-0385: non-constant-time mask
+  generation and `u128` comparisons). It sits under `digest`, used by `sha2`, `pbkdf2`
+  and `curve25519-dalek`, so it is on the key derivation path.
+- **Updated `rustix` to 1.1.6** (RUSTSEC-2026-0486, unsound xattr functions;
+  reached only through `tempfile`/`dialoguer`, not used by MnemoSSH directly).
 - **The mnemonic file is no longer world-readable.** `--mnemonic-file` wrote the
   phrase with the process umask, commonly `0644`. The phrase regenerates the key
   pair for as long as the key exists, so it was the most sensitive file the tool
