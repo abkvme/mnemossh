@@ -333,6 +333,13 @@ let (private_path, public_path) = keypair.save_to_files("~/.ssh/id_ed25519")?;
 
 We welcome contributions! Please see our [Contributing Guidelines](CONTRIBUTING.md) for details on how to get started, and our [Code of Conduct](CODE_OF_CONDUCT.md) for community guidelines.
 
+## Related
+
+- **[Seed Poet](https://seedpoet.com)** ([source](https://github.com/abkvme/seed-poet)): makes a
+  valid BIP39 phrase that reads as a short rhyming poem. Pass its words to `mnemossh restore`
+  and your SSH key backup becomes a poem you can remember.
+- Project page: [oxisoft.io/open-source/mnemossh](https://oxisoft.io/open-source/mnemossh/).
+
 ## Contact
 
 For questions, feedback, or discussions, you can reach out to the author on X: [@abkvme](https://x.com/abkvme)
