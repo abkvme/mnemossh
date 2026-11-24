@@ -1,6 +1,11 @@
 # MnemoSSH
 
-MnemoSSH is a Rust-based library and command-line utility designed to generate and manage Ed25519 SSH keys using BIP-39 mnemonic phrases. It provides secure and reproducible key generation from mnemonic phrases, allowing easy backup and recovery of SSH keys.
+**Back up your SSH key as 24 words. Restore it anywhere.**
+
+MnemoSSH derives an Ed25519 SSH key from a BIP-39 mnemonic phrase, the same kind of
+word list hardware crypto wallets use. Write the words on paper and the key is backed up:
+lose the laptop, wipe the disk, and the same phrase brings back the exact same key, so
+every server that trusts it keeps working.
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 [![CI](https://img.shields.io/github/actions/workflow/status/abkvme/mnemossh/ci.yml?label=ci&branch=main)](https://github.com/abkvme/mnemossh/actions/workflows/ci.yml)
@@ -9,8 +14,34 @@ MnemoSSH is a Rust-based library and command-line utility designed to generate a
 [![codecov](https://codecov.io/gh/abkvme/mnemossh/branch/main/graph/badge.svg)](https://codecov.io/gh/abkvme/mnemossh)
 [![Crates.io](https://img.shields.io/crates/v/mnemossh.svg)](https://crates.io/crates/mnemossh)
 
+```console
+$ mnemossh generate -o ~/.ssh/id_ed25519 -c alex@laptop -l 24 -m ./words.txt -p ""
+✓ Private key saved to: /home/alex/.ssh/id_ed25519
+✓ Public key saved to: /home/alex/.ssh/id_ed25519.pub
+
+🔑 Key fingerprints:
+  MD5:b0:74:9f:a6:65:6f:6b:78:40:1a:61:ef:41:14:1d:af
+  SHA256:BqKst9Fb2zPVKzJkP7OClrvjKve00eUkrNmaWf3SXoA
+
+✓ Mnemonic phrase saved to: ./words.txt
+
+# Months later, on a new machine: same words, same key, same fingerprint.
+$ mnemossh restore "$(cat words.txt)" -o ~/.ssh/id_ed25519 -c alex@laptop -p ""
+```
+
+## Why
+
+- **A key you cannot lose.** An SSH key file lives on one disk. A phrase lives on paper, in a
+  safe, or in your head, and needs no backup software to survive.
+- **Nothing to trust but a spec.** The [derivation](#key-derivation) is fully documented, so the
+  key can be rebuilt without this program, in any language, decades from now.
+- **Plain OpenSSH keys.** The output is a normal `id_ed25519` pair: `ssh`, `ssh-agent`, GitHub,
+  GitLab and every server accept it unchanged.
+- **Careful with secrets.** Key and phrase files are created `0600` in the same `open(2)` call,
+  the private key can be encrypted with a passphrase, and there is no network code at all.
 
 ## Features
+
 
 - **Generate SSH keys from mnemonic phrases**: Create Ed25519 SSH keys deterministically from BIP-39 mnemonic phrases
 - **Create new mnemonics**: Generate cryptographically secure mnemonic phrases (12, 18, or 24 words)
@@ -24,7 +55,16 @@ MnemoSSH is a Rust-based library and command-line utility designed to generate a
 
 ## Installation
 
-### From Source
+**With Cargo** (Rust 1.85+):
+
+```bash
+cargo install mnemossh
+```
+
+**Prebuilt binaries** for Linux (x86_64, arm64), macOS (Intel, Apple Silicon) and Windows are
+attached to every [release](https://github.com/abkvme/mnemossh/releases/latest).
+
+**From source:**
 
 ```bash
 git clone https://github.com/abkvme/mnemossh.git
